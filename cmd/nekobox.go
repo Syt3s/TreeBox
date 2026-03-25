@@ -1,7 +1,3 @@
-// Copyright 2025 E99p1ant. All rights reserved.
-// Use of this source code is governed by a MIT-style
-// license that can be found in the LICENSE file.
-
 package main
 
 import (
@@ -10,7 +6,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
-	"github.com/wuhan005/NekoBox/internal/cmd"
+	"github.com/syt3s/TreeBox/internal/cmd"
 )
 
 func main() {

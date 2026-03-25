@@ -15,8 +15,8 @@ import (
 	"github.com/pkg/errors"
 	"gopkg.in/gomail.v2"
 
-	"github.com/wuhan005/NekoBox/internal/conf"
-	"github.com/wuhan005/NekoBox/templates"
+	"github.com/syt3s/TreeBox/internal/conf"
+	"github.com/syt3s/TreeBox/templates"
 )
 
 func SendNewQuestionMail(email, domain string, questionID uint, questionContent string) error {
@@ -33,7 +33,7 @@ func SendNewAnswerMail(email, domain string, questionID uint, question, answer s
 		"question": question,
 		"answer":   answer,
 	}
-	return sendTemplateMail(email, "【NekoBox】您的提问有了回复", templates.FS, "mail/new-answer.html", params)
+	return sendTemplateMail(email, "【NekoBox】您的提问有了回答", templates.FS, "mail/new-answer.html", params)
 }
 
 func SendPasswordRecoveryMail(email, code string) error {

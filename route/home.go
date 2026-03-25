@@ -5,17 +5,10 @@
 package route
 
 import (
-	"github.com/wuhan005/NekoBox/internal/context"
+	"github.com/syt3s/TreeBox/internal/conf"
+	"github.com/syt3s/TreeBox/internal/context"
 )
 
 func Home(ctx context.Context) {
-	ctx.Success("home")
-}
-
-func Sponsor(ctx context.Context) {
-	ctx.Success("sponsor")
-}
-
-func ChangeLogs(ctx context.Context) {
-	ctx.Success("change-logs")
+	ctx.Redirect(conf.App.ExternalURL)
 }

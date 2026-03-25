@@ -12,7 +12,7 @@ import (
 	"github.com/wuhan005/gadget"
 	"gorm.io/gorm"
 
-	"github.com/wuhan005/NekoBox/internal/conf"
+	"github.com/syt3s/TreeBox/internal/conf"
 )
 
 var Users UsersStore
@@ -52,7 +52,7 @@ type User struct {
 	Intro             string                `json:"intro"`
 	Notify            NotifyType            `json:"notify"`
 	HarassmentSetting HarassmentSettingType `json:"harassment_setting"`
-	BlockWords        string                `json:"-"`
+	BlockWords        string                `json:"block_words"`
 }
 
 func (u *User) BeforeCreate(_ *gorm.DB) error {
@@ -96,7 +96,7 @@ type CreateUserOptions struct {
 var (
 	ErrUserNotExists   = errors.New("账号不存在")
 	ErrBadCredential   = errors.New("邮箱或密码错误")
-	ErrDuplicateEmail  = errors.New("这个邮箱已经注册过账号了！")
+	ErrDuplicateEmail  = errors.New("这个邮箱已经注册过账号了")
 	ErrDuplicateDomain = errors.New("个性域名重复了，换一个吧~")
 )
 
@@ -254,7 +254,7 @@ func (db *users) Deactivate(ctx context.Context, id uint) error {
 		return errors.Wrap(err, "get user by id")
 	}
 
-	if err := db.WithContext(ctx).Model(&User{}).Delete("id = ?", u.ID).Error; err != nil {
+	if err := db.WithContext(ctx).Where("id = ?", u.ID).Delete(&User{}).Error; err != nil {
 		return errors.Wrap(err, "delete user")
 	}
 	return nil

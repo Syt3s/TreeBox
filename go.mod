@@ -1,6 +1,6 @@
-module github.com/wuhan005/NekoBox
+module github.com/syt3s/TreeBox
 
-go 1.19
+go 1.21
 
 require (
 	github.com/aliyun/alibaba-cloud-sdk-go v1.62.26
@@ -15,6 +15,7 @@ require (
 	github.com/flamego/recaptcha v1.0.2
 	github.com/flamego/session v1.2.1
 	github.com/flamego/template v1.0.0
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/pkg/errors v0.9.1
 	github.com/qiniu/go-sdk/v7 v7.13.0
 	github.com/rs/xid v1.2.1

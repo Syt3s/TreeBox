@@ -5,4 +5,4 @@ name = "go"
 enabled = true
 
     [analyzers.meta]
-    import_root = "github.com/wuhan005/NekoBox"
+    import_root = "github.com/syt3s/TreeBox"

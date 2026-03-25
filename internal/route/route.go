@@ -21,18 +21,17 @@ import (
 	"github.com/flamego/template"
 	"github.com/sirupsen/logrus"
 
-	"github.com/wuhan005/NekoBox/internal/conf"
-	"github.com/wuhan005/NekoBox/internal/context"
-	"github.com/wuhan005/NekoBox/internal/form"
-	templatepkg "github.com/wuhan005/NekoBox/internal/template"
-	"github.com/wuhan005/NekoBox/route"
-	"github.com/wuhan005/NekoBox/route/auth"
-	"github.com/wuhan005/NekoBox/route/pixel"
-	"github.com/wuhan005/NekoBox/route/question"
-	"github.com/wuhan005/NekoBox/route/service"
-	"github.com/wuhan005/NekoBox/route/user"
-	"github.com/wuhan005/NekoBox/static"
-	"github.com/wuhan005/NekoBox/templates"
+	"github.com/syt3s/TreeBox/internal/conf"
+	"github.com/syt3s/TreeBox/internal/context"
+	"github.com/syt3s/TreeBox/internal/form"
+	"github.com/syt3s/TreeBox/internal/middleware"
+	templatepkg "github.com/syt3s/TreeBox/internal/template"
+	"github.com/syt3s/TreeBox/route"
+	"github.com/syt3s/TreeBox/route/api"
+	"github.com/syt3s/TreeBox/route/pixel"
+	"github.com/syt3s/TreeBox/route/service"
+	"github.com/syt3s/TreeBox/static"
+	"github.com/syt3s/TreeBox/templates"
 )
 
 func New() *flamego.Flame {
@@ -75,19 +74,19 @@ func New() *flamego.Flame {
 		Config: sessionStorage,
 	})
 
+	f.Use(middleware.CORS())
+
 	f.Use(flamego.Static(flamego.StaticOptions{
 		FileSystem: http.FS(static.FS),
 		Prefix:     "/static",
 	}))
 
-	reqUserSignOut := context.Toggle(&context.ToggleOptions{UserSignOutRequired: true})
 	reqUserSignIn := context.Toggle(&context.ToggleOptions{UserSignInRequired: true})
 
 	f.Group("", func() {
 		f.Get("/", route.Home)
 		f.Get("/pixel", reqUserSignIn, pixel.Index)
-		f.Get("/sponsor", route.Sponsor)
-		f.Get("/change-logs", route.ChangeLogs)
+		f.Any("/pixel/{**}", reqUserSignIn, pixel.Proxy)
 		f.Get("/robots.txt", func(c context.Context) {
 			_, _ = c.ResponseWriter().Write([]byte("User-agent: *\nDisallow: /_/"))
 		})
@@ -98,51 +97,34 @@ func New() *flamego.Flame {
 			_, _ = io.Copy(c.ResponseWriter(), fs)
 		})
 
-		f.Group("", func() {
-			f.Combo("/register").Get(auth.Register).Post(form.Bind(form.Register{}), auth.RegisterAction)
-			f.Combo("/login").Get(auth.Login).Post(form.Bind(form.Login{}), auth.LoginAction)
-			f.Combo("/forgot-password").Get(auth.ForgotPassword).Post(form.Bind(form.ForgotPassword{}), auth.ForgotPasswordAction)
-			f.Combo("/recover-password").Get(auth.RecoverPassword).Post(form.Bind(form.RecoverPassword{}), auth.RecoverPasswordAction)
-		}, reqUserSignOut)
+		f.Any("/service/{**}", service.Proxy)
 
-		f.Group("/_/{domain}", func() {
-			f.Combo("").Get(question.List).Post(form.Bind(form.NewQuestion{}), question.New)
-			f.Group("/{questionID}", func() {
-				f.Get("", question.Item)
-				f.Post("/delete", question.Delete)
-				f.Post("/set-private", question.SetPrivate)
-				f.Post("/set-public", question.SetPublic)
-				f.Post("/answer", reqUserSignIn, form.Bind(form.PublishAnswerQuestion{}), question.PublishAnswer)
-			}, question.Questioner)
-		}, question.Pager)
+		f.Group("/api/v2", func() {
+			f.Post("/auth/login", form.JSONBind(api.LoginRequest{}), api.Login)
+			f.Post("/auth/register", form.JSONBind(api.RegisterRequest{}), api.Register)
+			f.Post("/auth/logout", api.Logout)
+			f.Get("/auth/me", reqUserSignIn, api.GetCurrentUser)
+			f.Post("/auth/reset-password-dev", form.JSONBind(api.AdminResetPasswordRequest{}), api.AdminResetPassword)
 
-		f.Group("/user", func() {
-			f.Get("/questions", user.QuestionList)
+			f.Get("/users/{domain}", api.GetUser)
 
-			f.Group("/profile", func() {
-				f.Get("", user.Profile)
-				f.Post("/update", form.Bind(form.UpdateProfile{}), user.UpdateProfile)
-				f.Post("/export", user.ExportProfile)
-				f.Combo("/deactivate").Get(user.DeactivateProfile).Post(user.DeactivateProfileAction)
-			})
-			f.Post("/harassment/update", form.Bind(form.UpdateHarassment{}), user.UpdateHarassment)
-
-			f.Get("/logout", auth.Logout)
-		}, reqUserSignIn)
-
-		f.Group("/api/v1", func() {
 			f.Group("/user", func() {
-				f.Get("", reqUserSignIn, user.ProfileAPI)
-
-				f.Group("/{domain}", func() {
-					f.Group("/questions", func() {
-						f.Get("", question.ListAPI)
-					})
-				})
+				f.Get("/questions", reqUserSignIn, api.GetUserQuestions)
+				f.Post("/profile", reqUserSignIn, form.JSONBind(api.UpdateProfileRequest{}), api.UpdateProfile)
+				f.Post("/harassment", reqUserSignIn, form.JSONBind(api.UpdateHarassmentRequest{}), api.UpdateHarassment)
+				f.Get("/export", reqUserSignIn, api.ExportData)
+				f.Post("/deactivate", reqUserSignIn, api.Deactivate)
 			})
 
-			f.Any("/pixel/{**}", reqUserSignIn, pixel.Proxy)
-			f.Any("/service/{**}", service.Proxy)
+			f.Group("/questions", func() {
+				f.Post("/{domain}", form.JSONBind(api.CreateQuestionRequest{}), api.CreateQuestion)
+				f.Get("/{domain}", api.GetQuestions)
+				f.Get("/{domain}/{questionID}", api.GetQuestion)
+				f.Post("/{domain}/{questionID}/answer", reqUserSignIn, form.JSONBind(api.AnswerQuestionRequest{}), api.AnswerQuestion)
+				f.Post("/{domain}/{questionID}/delete", reqUserSignIn, api.DeleteQuestion)
+				f.Post("/{domain}/{questionID}/private", reqUserSignIn, api.SetQuestionPrivate)
+				f.Post("/{domain}/{questionID}/public", reqUserSignIn, api.SetQuestionPublic)
+			})
 		}, context.APIEndpoint)
 	},
 		cache.Cacher(cache.Options{

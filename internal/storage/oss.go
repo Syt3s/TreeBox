@@ -1,7 +1,3 @@
-// Copyright 2022 E99p1ant. All rights reserved.
-// Use of this source code is governed by a MIT-style
-// license that can be found in the LICENSE file.
-
 package storage
 
 import (
@@ -14,11 +10,9 @@ import (
 	"github.com/thanhpk/randstr"
 	"github.com/wuhan005/gadget"
 
-	"github.com/wuhan005/NekoBox/internal/conf"
+	"github.com/syt3s/TreeBox/internal/conf"
 )
 
-// UploadPictureToOSS upload user's avatar or background image to OSS.
-// It returns the uploaded asset URL.
 func UploadPictureToOSS(file multipart.File, _ *multipart.FileHeader) (string, error) {
 	client, err := oss.New(conf.Upload.AliyunEndpoint, conf.Upload.AliyunAccessID, conf.Upload.AliyunAccessSecret)
 	if err != nil {

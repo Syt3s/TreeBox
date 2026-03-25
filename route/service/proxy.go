@@ -14,8 +14,8 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/wuhan005/NekoBox/internal/conf"
-	"github.com/wuhan005/NekoBox/internal/context"
+	"github.com/syt3s/TreeBox/internal/conf"
+	"github.com/syt3s/TreeBox/internal/context"
 )
 
 func Proxy(ctx context.Context) error {

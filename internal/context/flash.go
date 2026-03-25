@@ -46,5 +46,5 @@ func (c Context) SetInternalErrorFlash() {
 	span := trace.SpanFromContext(c.Request().Context())
 	traceID := span.SpanContext().TraceID()
 
-	c.Session.SetFlash(Flash{Type: Error, Message: "服务内部错误，请稍后重试。", FlashTip: fmt.Sprintf("若问题一直出现，请带上该段字符 %s 提交反馈。", traceID.String())})
+	c.Session.SetFlash(Flash{Type: Error, Message: "服务内部错误，请稍后重试", FlashTip: fmt.Sprintf("若问题一直出现，请带上该段字样: %s 提交反馈", traceID.String())})
 }

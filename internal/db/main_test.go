@@ -9,7 +9,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/wuhan005/NekoBox/internal/dbutil"
+	"github.com/syt3s/TreeBox/internal/dbutil"
 )
 
 // newTestDB returns a test database instance with the cleanup function.

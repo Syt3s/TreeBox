@@ -20,9 +20,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/wuhan005/NekoBox/internal/conf"
-	"github.com/wuhan005/NekoBox/internal/db"
-	templatepkg "github.com/wuhan005/NekoBox/internal/template"
+	"github.com/syt3s/TreeBox/internal/conf"
+	"github.com/syt3s/TreeBox/internal/db"
+	templatepkg "github.com/syt3s/TreeBox/internal/template"
 )
 
 type EndpointType string
@@ -100,8 +100,8 @@ func (c *Context) SetInternalError(f ...interface{}) {
 	span := trace.SpanFromContext(c.Request().Context())
 	traceID := span.SpanContext().TraceID()
 
-	c.Data["FlashTip"] = fmt.Sprintf("若问题一直出现，请带上该段字符 %s 提交反馈。", traceID.String())
-	c.SetError(errors.New("服务内部错误，请稍后重试。"), f...)
+	c.Data["FlashTip"] = fmt.Sprintf("如果问题持续出现，请附带这个追踪 ID: %s 提交反馈", traceID.String())
+	c.SetError(errors.New("服务器内部错误，请稍后重试"), f...)
 }
 
 // Success renders HTML template with given name with 200 OK status code.
@@ -159,8 +159,11 @@ func Contexter() flamego.Handler {
 			Template: t,
 		}
 
-		if ctx.Request().Method == http.MethodPost && !strings.HasPrefix(ctx.Request().URL.Path, "/api/v1/pixel/") {
-			x.Validate(ctx)
+		if ctx.Request().Method == http.MethodPost {
+			path := ctx.Request().URL.Path
+			if !strings.HasPrefix(path, "/api/") {
+				x.Validate(ctx)
+			}
 		}
 
 		// Get user from session or header when possible
@@ -221,10 +224,10 @@ func Contexter() flamego.Handler {
 		c.Data["CurrentURI"] = ctx.Request().Request.RequestURI
 		c.Data["ExternalURL"] = conf.App.ExternalURL
 
-		// ⚠️ VConsole can only be enabled for the first user for security reasons.
+		// VConsole can only be enabled for the first user for security reasons.
 		c.Data["VConsole"] = ctx.Query("debug") == "on" && c.IsLogged && c.User.ID == 1
 
-		// 🚨 SECURITY: Prevent MIME type sniffing in some browsers,
+		// SECURITY: Prevent MIME type sniffing in some browsers.
 		c.ResponseWriter().Header().Set("X-Content-Type-Options", "nosniff")
 		c.ResponseWriter().Header().Set("X-Frame-Options", "DENY")
 

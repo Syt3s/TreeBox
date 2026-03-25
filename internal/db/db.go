@@ -11,7 +11,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	"github.com/wuhan005/NekoBox/internal/conf"
+	"github.com/syt3s/TreeBox/internal/conf"
 )
 
 var AllTables = []interface{}{

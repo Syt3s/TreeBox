@@ -21,3 +21,7 @@ app.ini
 .vscode
 nekobox
 share.yaml
+.gocache/
+frontend/.next/
+frontend/node_modules/
+frontend/tsconfig.tsbuildinfo
