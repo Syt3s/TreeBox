@@ -24,21 +24,43 @@ import (
 var flagParseOnce sync.Once
 var testDBNameCounter uint64
 
+func requireTestEnv(t *testing.T, names ...string) {
+	t.Helper()
+
+	missing := make([]string, 0, len(names))
+	for _, name := range names {
+		if strings.TrimSpace(os.Getenv(name)) == "" {
+			missing = append(missing, name)
+		}
+	}
+
+	if len(missing) > 0 {
+		t.Skipf("Skip database tests: missing environment variables %s", strings.Join(missing, ", "))
+	}
+}
+
 func NewTestDB(t *testing.T, migrationTables ...interface{}) (testDB *gorm.DB, cleanup func(...string) error) {
-	dbType := os.Getenv("DB_TYPE")
+	t.Helper()
+
+	dbType := strings.TrimSpace(os.Getenv("DB_TYPE"))
+	if dbType == "" {
+		t.Skip("Skip database tests: DB_TYPE is not set")
+	}
 
 	var dsn string
 	var dialectFunc func(string) gorm.Dialector
 
 	switch dbType {
 	case "mysql":
+		requireTestEnv(t, "DB_USER", "DB_PASSWORD", "DB_HOST", "DB_PORT", "DB_DATABASE")
 		dsn = os.ExpandEnv("$DB_USER:$DB_PASSWORD@tcp($DB_HOST:$DB_PORT)/$DB_DATABASE?charset=utf8mb4&parseTime=True&loc=Local")
 		dialectFunc = mysql.Open
 	case "postgres":
+		requireTestEnv(t, "DB_USER", "DB_PASSWORD", "DB_HOST", "DB_PORT")
 		dsn = os.ExpandEnv("postgres://$DB_USER:$DB_PASSWORD@$DB_HOST:$DB_PORT?sslmode=disable")
 		dialectFunc = postgres.Open
 	default:
-		t.Fatalf("Unknown database type: %q", dbType)
+		t.Skipf("Skip database tests: unsupported DB_TYPE %q", dbType)
 	}
 
 	db, err := gorm.Open(dialectFunc(dsn), &gorm.Config{
@@ -50,7 +72,7 @@ func NewTestDB(t *testing.T, migrationTables ...interface{}) (testDB *gorm.DB, c
 	}
 
 	ctx := context.Background()
-	dbname := "nekobox-test-" + strconv.FormatInt(time.Now().UnixNano(), 10) + "-" + strconv.FormatUint(atomic.AddUint64(&testDBNameCounter, 1), 10)
+	dbname := "treebox-test-" + strconv.FormatInt(time.Now().UnixNano(), 10) + "-" + strconv.FormatUint(atomic.AddUint64(&testDBNameCounter, 1), 10)
 
 	err = db.WithContext(ctx).Exec(`CREATE DATABASE ` + QuoteIdentifier(dbType, dbname)).Error
 	if err != nil {
@@ -135,8 +157,6 @@ func NewTestDB(t *testing.T, migrationTables ...interface{}) (testDB *gorm.DB, c
 	}
 }
 
-// QuoteIdentifier quotes an "identifier" (e.g. a table or a column name) to be
-// used as part of an SQL statement.
 func QuoteIdentifier(typ, s string) string {
 	if typ == "postgres" {
 		return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`

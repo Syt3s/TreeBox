@@ -32,7 +32,6 @@ func TestQuestions(t *testing.T) {
 		{"GetByAskUserID", testQuestionsGetByAskUserID},
 		{"AnswerByID", testQuestionsAnswerByID},
 		{"DeleteByID", testQuestionsDeleteByID},
-		{"UpdateCensor", testQuestionsUpdateCensor},
 		{"Count", testQuestionsCount},
 		{"SetPrivate", testQuestionsSetPrivate},
 		{"SetPublic", testQuestionsSetPublic},
@@ -343,30 +342,6 @@ func testQuestionsDeleteByID(t *testing.T, ctx context.Context, db *questions) {
 	t.Run("not found", func(t *testing.T) {
 		err := db.DeleteByID(ctx, 404)
 		require.Equal(t, ErrQuestionNotExist, err)
-	})
-}
-
-func testQuestionsUpdateCensor(t *testing.T, ctx context.Context, db *questions) {
-	t.Run("normal", func(t *testing.T) {
-		_, err := db.Create(ctx, CreateQuestionOptions{
-			FromIP:            "114.5.1.4",
-			UserID:            1,
-			Content:           "Content - 1",
-			ReceiveReplyEmail: "i@github.red",
-			AskerUserID:       1,
-		})
-		require.Nil(t, err)
-
-		err = db.DeleteByID(ctx, 1)
-		require.Nil(t, err)
-
-		_, err = db.GetByID(ctx, 1)
-		require.Equal(t, ErrQuestionNotExist, err)
-	})
-
-	t.Run("not found", func(t *testing.T) {
-		err := db.UpdateCensor(ctx, 404, UpdateQuestionCensorOptions{})
-		require.NotNil(t, err)
 	})
 }
 

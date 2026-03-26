@@ -3,26 +3,27 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/flamego/flamego"
+	"github.com/gin-gonic/gin"
 )
 
-func CORS() flamego.Handler {
-	return func(ctx flamego.Context) {
-		origin := ctx.Request().Header.Get("Origin")
+func CORS() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := c.Request.Header.Get("Origin")
 		if origin != "" {
-			ctx.ResponseWriter().Header().Set("Access-Control-Allow-Origin", origin)
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 		}
-		ctx.ResponseWriter().Header().Add("Vary", "Origin")
-		ctx.ResponseWriter().Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		ctx.ResponseWriter().Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token")
-		ctx.ResponseWriter().Header().Set("Access-Control-Allow-Credentials", "true")
-		ctx.ResponseWriter().Header().Set("Access-Control-Max-Age", "86400")
+		c.Writer.Header().Add("Vary", "Origin")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
 
-		if ctx.Request().Method == http.MethodOptions {
-			ctx.ResponseWriter().WriteHeader(http.StatusOK)
+		if c.Request.Method == http.MethodOptions {
+			c.Status(http.StatusOK)
+			c.Abort()
 			return
 		}
 
-		ctx.Next()
+		c.Next()
 	}
 }

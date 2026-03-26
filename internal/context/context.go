@@ -1,28 +1,18 @@
-// Copyright 2022 E99p1ant. All rights reserved.
-// Use of this source code is governed by a MIT-style
-// license that can be found in the LICENSE file.
-
 package context
 
 import (
-	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
-	"reflect"
+	"strconv"
 	"strings"
 
-	"github.com/flamego/csrf"
-	"github.com/flamego/flamego"
-	"github.com/flamego/session"
-	"github.com/flamego/template"
-	"github.com/pkg/errors"
-	"github.com/unknwon/com"
+	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/syt3s/TreeBox/internal/branding"
 	"github.com/syt3s/TreeBox/internal/conf"
 	"github.com/syt3s/TreeBox/internal/db"
-	templatepkg "github.com/syt3s/TreeBox/internal/template"
 )
 
 type EndpointType string
@@ -32,6 +22,10 @@ const (
 	EndpointWeb EndpointType = "web"
 )
 
+const contextKey = "treebox.context"
+
+var ErrHandled = errors.New("request handled")
+
 func (e EndpointType) IsAPI() bool {
 	return e == EndpointAPI
 }
@@ -40,91 +34,106 @@ func (e EndpointType) IsWeb() bool {
 	return e == EndpointWeb
 }
 
-func APIEndpoint(ctx Context) {
-	ctx.Map(EndpointAPI)
-}
-
-// Context represents context of a request.
 type Context struct {
-	flamego.Context
-
-	Data     template.Data
-	Session  session.Session
-	Template template.Template
+	*gin.Context
 
 	User     *db.User
 	IsLogged bool
+	endpoint EndpointType
 }
 
-// HasError returns true if error occurs in form validation.
-func (c *Context) HasError() bool {
-	hasErr, ok := c.Data["HasError"]
-	if !ok {
-		return false
-	}
-	return hasErr.(bool)
-}
-
-func (c *Context) SetError(err error, f ...interface{}) {
-	c.Data["HasError"] = true
-	c.Data["Error"] = err.Error()
-
-	// Set back the form data.
-	if len(f) > 0 {
-		form := f[0]
-		typ := reflect.TypeOf(form)
-		val := reflect.ValueOf(form)
-
-		if typ.Kind() == reflect.Ptr {
-			typ = typ.Elem()
-			val = val.Elem()
-		}
-
-		for i := 0; i < typ.NumField(); i++ {
-			field := typ.Field(i)
-			fieldName := com.ToSnakeCase(field.Name)
-
-			c.Data[fieldName] = val.Field(i).Interface()
+func FromGin(c *gin.Context) *Context {
+	if value, ok := c.Get(contextKey); ok {
+		if ctx, ok := value.(*Context); ok {
+			return ctx
 		}
 	}
 
-	span := trace.SpanFromContext(c.Request().Context())
-	if span.IsRecording() {
-		span.SetAttributes(
-			attribute.String("nekobox.error", err.Error()),
-		)
+	ctx := &Context{
+		Context:  c,
+		endpoint: EndpointWeb,
+	}
+	c.Set(contextKey, ctx)
+	return ctx
+}
+
+func Wrap(handler func(Context) error) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx := FromGin(c)
+		if err := handler(*ctx); err != nil && !errors.Is(err, ErrHandled) {
+			_ = c.Error(err)
+			c.Abort()
+		}
 	}
 }
 
-func (c *Context) SetInternalError(f ...interface{}) {
-	span := trace.SpanFromContext(c.Request().Context())
-	traceID := span.SpanContext().TraceID()
-
-	c.Data["FlashTip"] = fmt.Sprintf("如果问题持续出现，请附带这个追踪 ID: %s 提交反馈", traceID.String())
-	c.SetError(errors.New("服务器内部错误，请稍后重试"), f...)
+func APIEndpoint() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx := FromGin(c)
+		ctx.endpoint = EndpointAPI
+		c.Next()
+	}
 }
 
-// Success renders HTML template with given name with 200 OK status code.
-func (c *Context) Success(templateName string) {
-	c.Template.HTML(http.StatusOK, templateName)
+func (c *Context) Request() *http.Request {
+	return c.Context.Request
 }
 
-func (c *Context) SetTitle(title string) {
-	c.Data["Title"] = title
+func (c *Context) ResponseWriter() gin.ResponseWriter {
+	return c.Context.Writer
 }
 
-func (c *Context) Refresh() {
-	c.Redirect(c.Request().URL.Path)
+func (c *Context) IsAPIRequest() bool {
+	return c.endpoint.IsAPI() || strings.HasPrefix(c.Request().URL.Path, "/api/")
+}
+
+func (c *Context) Param(name string) string {
+	if name == "**" {
+		return strings.TrimPrefix(c.Context.Param("path"), "/")
+	}
+	return c.Context.Param(name)
+}
+
+func (c *Context) Query(name string, defaultVal ...string) string {
+	value := strings.TrimSpace(c.Context.Query(name))
+	if value != "" {
+		return value
+	}
+	if len(defaultVal) > 0 {
+		return defaultVal[0]
+	}
+	return ""
+}
+
+func (c *Context) QueryInt(name string, defaultVal ...int) int {
+	value := c.Query(name)
+	if value == "" && len(defaultVal) > 0 {
+		return defaultVal[0]
+	}
+
+	number, _ := strconv.Atoi(value)
+	return number
+}
+
+func (c *Context) Redirect(location string, status ...int) {
+	code := http.StatusFound
+	if len(status) == 1 {
+		code = status[0]
+	}
+	c.Context.Redirect(code, location)
+}
+
+func (c *Context) BindJSON(target interface{}) error {
+	return c.Context.ShouldBindJSON(target)
 }
 
 func (c *Context) JSON(data interface{}) error {
-	resp := map[string]interface{}{
+	c.Context.JSON(http.StatusOK, gin.H{
 		"code":    0,
 		"data":    data,
 		"message": "success",
-	}
-
-	return json.NewEncoder(c.ResponseWriter()).Encode(resp)
+	})
+	return ErrHandled
 }
 
 func (c *Context) ServerError() error {
@@ -134,110 +143,57 @@ func (c *Context) ServerError() error {
 func (c *Context) JSONError(errorCode int, message string) error {
 	span := trace.SpanFromContext(c.Request().Context())
 
-	resp := map[string]interface{}{
-		"code":     errorCode,
-		"message":  message,
-		"trace_id": span.SpanContext().TraceID().String(),
-	}
-
 	statusCode := errorCode / 100
 	if statusCode < 100 || statusCode > 999 {
 		statusCode = http.StatusInternalServerError
 	}
-	c.ResponseWriter().WriteHeader(statusCode)
 
-	return json.NewEncoder(c.ResponseWriter()).Encode(resp)
+	if !c.Writer.Written() {
+		c.Context.JSON(statusCode, gin.H{
+			"code":     errorCode,
+			"message":  message,
+			"trace_id": span.SpanContext().TraceID().String(),
+		})
+	}
+
+	return ErrHandled
 }
 
-// Contexter initializes a classic context for a request.
-func Contexter() flamego.Handler {
-	return func(ctx flamego.Context, data template.Data, session session.Session, x csrf.CSRF, t template.Template, flash session.Flash) {
-		c := Context{
-			Context:  ctx,
-			Data:     data,
-			Session:  session,
-			Template: t,
-		}
-
-		if ctx.Request().Method == http.MethodPost {
-			path := ctx.Request().URL.Path
-			if !strings.HasPrefix(path, "/api/") {
-				x.Validate(ctx)
-			}
-		}
-
-		// Get user from session or header when possible
-		c.User = authenticatedUser(c.Context, c.Session)
+func Contexter() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx := FromGin(c)
+		ctx.endpoint = EndpointWeb
+		ctx.User = authenticatedUser(c)
+		ctx.IsLogged = ctx.User != nil
 
 		var userID uint
-		if c.User != nil {
-			c.IsLogged = true
-			c.Data["IsLogged"] = c.IsLogged
-			c.Data["LoggedUser"] = c.User
-			c.Data["LoggedUserID"] = c.User.ID
-			c.Data["LoggedUserName"] = c.User.Name
-
-			userID = c.User.ID
-		} else {
-			c.Data["LoggedUserID"] = 0
-			c.Data["LoggedUserName"] = ""
+		if ctx.User != nil {
+			userID = ctx.User.ID
 		}
 
-		c.Data["IsPixel"] = ctx.Request().URL.Path == "/pixel"
-
-		span := trace.SpanFromContext(ctx.Request().Context())
+		span := trace.SpanFromContext(c.Request.Context())
 		if span.IsRecording() {
 			span.SetAttributes(
-				attribute.Bool("nekobox.user.is-login", c.IsLogged),
-				attribute.Int("nekobox.user.id", int(userID)),
+				attribute.Bool(branding.TelemetryNamespace+".user.is-login", ctx.IsLogged),
+				attribute.Int(branding.TelemetryNamespace+".user.id", int(userID)),
 			)
 		}
-		c.ResponseWriter().Header().Set("Trace-ID", span.SpanContext().TraceID().String())
 
-		if flash != nil {
-			flash, ok := flash.(Flash)
-			if ok {
-				switch flash.Type {
-				case "success":
-					c.Data["Success"] = flash.Message
-				case "error":
-					c.Data["HasError"] = true
-					c.Data["Error"] = flash.Message
-				case "info":
-					c.Data["Info"] = flash.Message
-				case "warning":
-					c.Data["Warning"] = flash.Message
-				}
-
-				c.Data["FlashTip"] = flash.FlashTip
-			}
-		}
-
-		c.SetTitle("NekoBox")
-		c.Data["CSRFToken"] = x.Token()
-		c.Data["CSRFTokenHTML"] = templatepkg.Safe(`<input type="hidden" name="_csrf" value="` + x.Token() + `">`)
-
-		c.Data["RecaptchaDomain"] = conf.Recaptcha.Domain
-		c.Data["RecaptchaSiteKey"] = conf.Recaptcha.SiteKey
-		c.Data["RecaptchaTurnstileStyle"] = conf.Recaptcha.TurnstileStyle
-
-		c.Data["CurrentURI"] = ctx.Request().Request.RequestURI
-		c.Data["ExternalURL"] = conf.App.ExternalURL
-
-		// VConsole can only be enabled for the first user for security reasons.
-		c.Data["VConsole"] = ctx.Query("debug") == "on" && c.IsLogged && c.User.ID == 1
-
-		// SECURITY: Prevent MIME type sniffing in some browsers.
-		c.ResponseWriter().Header().Set("X-Content-Type-Options", "nosniff")
-		c.ResponseWriter().Header().Set("X-Frame-Options", "DENY")
-
-		ctx.Map(c)
-		ctx.Map(EndpointWeb)
+		c.Writer.Header().Set("Trace-ID", span.SpanContext().TraceID().String())
+		c.Writer.Header().Set("X-Content-Type-Options", "nosniff")
+		c.Writer.Header().Set("X-Frame-Options", "DENY")
 
 		if conf.App.MaintenanceMode {
-			c.ResponseWriter().Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-			c.Success("maintenance-mode")
+			c.Writer.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+				_ = ctx.JSONError(http.StatusServiceUnavailable, "服务维护中")
+			} else {
+				c.Data(http.StatusServiceUnavailable, "text/plain; charset=utf-8", []byte(branding.ProductName+" is under maintenance"))
+			}
+			c.Abort()
 			return
 		}
+
+		c.Next()
 	}
 }

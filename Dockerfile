@@ -9,7 +9,7 @@ ARG GITHUB_SHA=dev
 COPY . .
 
 RUN go mod tidy
-RUN go build -v -ldflags "-w -s -extldflags '-static' -X 'github.com/syt3s/TreeBox/internal/conf.BuildCommit=$GITHUB_SHA'" -o NekoBox ./cmd/
+RUN go build -v -ldflags "-w -s -extldflags '-static' -X 'github.com/syt3s/TreeBox/internal/conf.BuildCommit=$GITHUB_SHA'" -o TreeBox ./cmd/
 
 FROM alpine:latest
 
@@ -18,9 +18,9 @@ RUN apk update && apk add tzdata && cp /usr/share/zoneinfo/Asia/Shanghai /etc/lo
 
 WORKDIR /home/app
 
-COPY --from=builder /app/NekoBox .
+COPY --from=builder /app/TreeBox .
 
-RUN chmod 777 /home/app/NekoBox
+RUN chmod 777 /home/app/TreeBox
 
-ENTRYPOINT ["./NekoBox", "web"]
+ENTRYPOINT ["./TreeBox", "web"]
 EXPOSE 8080

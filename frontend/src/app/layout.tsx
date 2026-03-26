@@ -7,7 +7,7 @@ import { ToastProvider } from "@/components/ui/toast"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "NekoBox - 匿名提问箱",
+  title: "TreeBox - 匿名提问箱",
   description: "匿名提问箱 / Anonymous Question Box",
 }
 

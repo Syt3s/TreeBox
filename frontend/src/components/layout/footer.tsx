@@ -4,7 +4,7 @@ export function Footer() {
       <div className="container mx-auto px-4">
         <div className="flex flex-col items-center justify-center gap-2 text-center text-sm text-gray-600 dark:text-gray-400">
           <p>
-            Made with ❤️ by NekoBox
+            Made with love by TreeBox
           </p>
           <div className="flex items-center gap-4">
             <a
@@ -20,14 +20,14 @@ export function Footer() {
               href="/pixel"
               className="hover:text-gray-900 dark:hover:text-gray-100"
             >
-              画板
+              鐢绘澘
             </a>
             <span>|</span>
             <a
               href="/sponsor"
               className="hover:text-gray-900 dark:hover:text-gray-100"
             >
-              打赏
+              鎵撹祻
             </a>
           </div>
         </div>

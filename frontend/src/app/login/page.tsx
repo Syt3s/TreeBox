@@ -81,10 +81,10 @@ export default function LoginPage() {
         <Card className="w-full max-w-md shadow-xl">
           <CardHeader className="space-y-1 text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-cyan-500">
-              <span className="text-3xl font-bold text-white">N</span>
+              <span className="text-3xl font-bold text-white">T</span>
             </div>
             <CardTitle className="text-2xl">欢迎回来</CardTitle>
-            <CardDescription>登录到你的 NekoBox 账户，继续管理提问箱。</CardDescription>
+            <CardDescription>登录到你的 TreeBox 账户，继续管理提问箱。</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">

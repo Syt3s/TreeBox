@@ -16,10 +16,10 @@ export default function SponsorPage() {
               支持项目
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-gray-100 md:text-5xl">
-              给 NekoBox 打钱
+              给 TreeBox 打钱
             </h1>
             <p className="max-w-2xl text-lg leading-8 text-gray-600 dark:text-gray-400">
-              NekoBox 最初只是一个轻量的匿名问答箱，后来慢慢变成了一个长期维护的小项目。如果你愿意分担一点服务器和开发成本，这里是支持入口。
+              TreeBox 最初只是一个轻量的匿名问答箱，后来慢慢变成了一个长期维护的小项目。如果你愿意分担一点服务器和开发成本，这里是支持入口。
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -53,7 +53,7 @@ export default function SponsorPage() {
             </div>
             <div className="mt-6 space-y-4">
               <p className="text-sm leading-6 text-gray-600 dark:text-gray-400">
-                感谢所有支持 NekoBox 的朋友。你的每一次支持，都会直接变成项目维护的时间和资源。
+                感谢所有支持 TreeBox 的朋友。你的每一次支持，都会直接变成项目维护的时间和资源。
               </p>
               <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
                 当前页面是前端实现，旧的后端模板页已经移除。

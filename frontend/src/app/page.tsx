@@ -31,10 +31,10 @@ export default function Home() {
         <div className="mx-auto max-w-4xl space-y-12">
           <div className="space-y-6 text-center">
             <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 shadow-lg">
-              <span className="text-5xl font-bold text-white">N</span>
+              <span className="text-5xl font-bold text-white">T</span>
             </div>
             <div className="space-y-2">
-              <h1 className="text-5xl font-bold text-gray-900 dark:text-gray-100">NekoBox</h1>
+              <h1 className="text-5xl font-bold text-gray-900 dark:text-gray-100">TreeBox</h1>
               <p className="text-xl text-gray-600 dark:text-gray-400">一个极简、直接的匿名提问箱。</p>
             </div>
             <p className="mx-auto max-w-2xl text-gray-600 dark:text-gray-400">
@@ -102,7 +102,7 @@ export default function Home() {
           {!user && (
             <Card className="bg-gradient-to-br from-sky-50 to-blue-50 shadow-lg dark:from-blue-900/20 dark:to-cyan-900/20">
               <CardContent className="space-y-4 pt-6 text-center">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">开始使用 NekoBox</h2>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">开始使用 TreeBox</h2>
                 <p className="text-gray-600 dark:text-gray-400">创建你的提问箱，开始接收匿名提问。</p>
                 <div className="flex justify-center gap-4">
                   <Link href="/login">

@@ -14,18 +14,10 @@ var (
 
 var (
 	App struct {
-		Production            bool   `ini:"production"`
-		ExternalURL           string `ini:"external_url"`
-		ICP                   string `ini:"icp"`
-		UptraceDSN            string `ini:"uptrace_dsn"`
-		AliyunAccessKey       string `ini:"aliyun_access_key"`
-		AliyunAccessKeySecret string `ini:"aliyun_access_key_secret"`
-		SentryDSN             string `ini:"sentry_dsn"`
-		MaintenanceMode       bool   `ini:"maintenance_mode"`
-	}
-
-	Security struct {
-		EnableTextCensor bool `ini:"enable_text_censor"`
+		Production      bool   `ini:"production"`
+		ExternalURL     string `ini:"external_url"`
+		UptraceDSN      string `ini:"uptrace_dsn"`
+		MaintenanceMode bool   `ini:"maintenance_mode"`
 	}
 
 	Server struct {
@@ -60,28 +52,6 @@ var (
 
 	Pixel struct {
 		Host string `ini:"host"`
-	}
-
-	Upload struct {
-		DefaultAvatarURL    string `ini:"default_avatar"`
-		DefaultBackground   string `ini:"default_background"`
-		AliyunEndpoint      string `ini:"aliyun_endpoint"`
-		AliyunAccessID      string `ini:"aliyun_access_id"`
-		AliyunAccessSecret  string `ini:"aliyun_access_secret"`
-		AliyunBucket        string `ini:"aliyun_bucket"`
-		AliyunBucketCDNHost string `ini:"aliyun_bucket_cdn_host"`
-		ImageEndpoint       string `ini:"image_endpoint"`
-		ImageAccessID       string `ini:"image_access_id"`
-		ImageAccessSecret   string `ini:"image_access_secret"`
-		ImageBucket         string `ini:"image_bucket"`
-		ImageBucketCDNHost  string `ini:"image_bucket_cdn_host"`
-	}
-
-	Mail struct {
-		Account  string `ini:"account"`
-		Password string `ini:"password"`
-		Port     int    `ini:"port"`
-		SMTP     string `ini:"smtp"`
 	}
 
 	Service struct {

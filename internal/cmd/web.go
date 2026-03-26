@@ -1,19 +1,18 @@
-// Copyright 2022 E99p1ant. All rights reserved.
-// Use of this source code is governed by a MIT-style
-// license that can be found in the LICENSE file.
-
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-	"github.com/uptrace/opentelemetry-go-extra/otellogrus"
 	"github.com/uptrace/uptrace-go/uptrace"
 	"github.com/urfave/cli/v2"
+	"go.uber.org/zap"
 
+	"github.com/syt3s/TreeBox/internal/branding"
 	"github.com/syt3s/TreeBox/internal/conf"
 	"github.com/syt3s/TreeBox/internal/db"
-	"github.com/syt3s/TreeBox/internal/route"
+	"github.com/syt3s/TreeBox/internal/logging"
+	"github.com/syt3s/TreeBox/internal/router"
 	"github.com/syt3s/TreeBox/internal/tracing"
 )
 
@@ -28,21 +27,22 @@ func runWeb(ctx *cli.Context) error {
 		return errors.Wrap(err, "load configuration")
 	}
 
+	if _, err := logging.Init(logging.Options{
+		ServiceName: branding.ServiceName,
+		Production:  conf.App.Production,
+		LogDir:      "logs",
+	}); err != nil {
+		return errors.Wrap(err, "init logger")
+	}
+
 	if conf.App.UptraceDSN != "" {
 		uptrace.ConfigureOpentelemetry(
 			uptrace.WithDSN(conf.App.UptraceDSN),
-			uptrace.WithServiceName("nekobox"),
+			uptrace.WithServiceName(branding.ServiceName),
 			uptrace.WithServiceVersion(conf.BuildCommit),
 		)
-		logrus.WithContext(ctx.Context).Debug("Tracing enabled.")
+		logging.FromContext(ctx.Context).Info("tracing enabled")
 	}
-
-	logrus.AddHook(otellogrus.NewHook(otellogrus.WithLevels(
-		logrus.PanicLevel,
-		logrus.FatalLevel,
-		logrus.ErrorLevel,
-		logrus.WarnLevel,
-	)))
 
 	dbType := conf.Database.Type
 
@@ -57,15 +57,20 @@ func runWeb(ctx *cli.Context) error {
 	}
 	conf.Database.DSN = dsn
 
-	_, err := db.Init(dbType, dsn)
-	if err != nil {
+	if _, err := db.Init(dbType, dsn); err != nil {
 		return errors.Wrap(err, "connect to database")
 	}
 
-	logrus.WithContext(ctx.Context).WithField("external_url", conf.App.ExternalURL).Info("Starting web server")
-	r := route.New()
-	r.Use(tracing.Middleware("NekoBox"))
-	r.Run(conf.Server.Port)
+	logging.FromContext(ctx.Context).Info("starting web server",
+		zap.String("external_url", conf.App.ExternalURL),
+		zap.Int("port", conf.Server.Port),
+		zap.String("db_type", dbType),
+	)
+
+	r := router.New(tracing.Middleware(branding.ProductName))
+	if err := r.Run(fmt.Sprintf(":%d", conf.Server.Port)); err != nil {
+		return errors.Wrap(err, "run gin server")
+	}
 
 	return nil
 }

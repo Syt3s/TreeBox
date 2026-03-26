@@ -10,13 +10,18 @@ import (
 
 	"github.com/pkg/errors"
 	"gopkg.in/ini.v1"
+
+	"github.com/syt3s/TreeBox/internal/branding"
 )
 
 // File is the configuration object.
 var File *ini.File
 
 func Init() error {
-	configFile := os.Getenv("NEKOBOX_CONFIG_PATH")
+	configFile := os.Getenv(branding.ConfigPathEnvVar)
+	if configFile == "" {
+		configFile = os.Getenv(branding.LegacyConfigPathEnvVar)
+	}
 	if configFile == "" {
 		configFile = "conf/app.ini"
 	}
@@ -38,10 +43,6 @@ func Init() error {
 	}
 	App.ExternalURL = strings.TrimRight(App.ExternalURL, "/")
 
-	if err := File.Section("security").MapTo(&Security); err != nil {
-		return errors.Wrap(err, "map 'security'")
-	}
-
 	if err := File.Section("server").MapTo(&Server); err != nil {
 		return errors.Wrap(err, "map 'server'")
 	}
@@ -60,14 +61,6 @@ func Init() error {
 
 	if err := File.Section("pixel").MapTo(&Pixel); err != nil {
 		return errors.Wrap(err, "map 'pixel'")
-	}
-
-	if err := File.Section("upload").MapTo(&Upload); err != nil {
-		return errors.Wrap(err, "map 'upload'")
-	}
-
-	if err := File.Section("mail").MapTo(&Mail); err != nil {
-		return errors.Wrap(err, "map 'mail'")
 	}
 
 	serviceSections := File.Section("service").ChildSections()

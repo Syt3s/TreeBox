@@ -5,14 +5,11 @@
 package db
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/pkg/errors"
 	"github.com/thanhpk/randstr"
-	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
 	"github.com/syt3s/TreeBox/internal/dbutil"
@@ -27,7 +24,6 @@ type QuestionsStore interface {
 	GetByAskUserID(ctx context.Context, userID uint, opts GetQuestionsByAskUserIDOptions) ([]*Question, error)
 	AnswerByID(ctx context.Context, id uint, answer string) error
 	DeleteByID(ctx context.Context, id uint) error
-	UpdateCensor(ctx context.Context, id uint, opts UpdateQuestionCensorOptions) error
 	Count(ctx context.Context, userID uint, opts GetQuestionsCountOptions) (int64, error)
 	SetPrivate(ctx context.Context, id uint) error
 	SetPublic(ctx context.Context, id uint) error
@@ -43,16 +39,14 @@ type questions struct {
 
 type Question struct {
 	dbutil.Model
-	FromIP                string         `json:"-"`
-	UserID                uint           `gorm:"index:idx_question_user_id" json:"-"`
-	Content               string         `json:"content"`
-	ContentCensorMetadata datatypes.JSON `json:"-"`
-	Token                 string         `json:"-"`
-	Answer                string         `json:"answer"`
-	AnswerCensorMetadata  datatypes.JSON `json:"-"`
-	ReceiveReplyEmail     string         `json:"-"`
-	AskerUserID           uint           `json:"-"`
-	IsPrivate             bool           `gorm:"default: FALSE; NOT NULL" json:"-"`
+	FromIP            string `json:"-"`
+	UserID            uint   `gorm:"index:idx_question_user_id" json:"-"`
+	Content           string `json:"content"`
+	Token             string `json:"-"`
+	Answer            string `json:"answer"`
+	ReceiveReplyEmail string `json:"-"`
+	AskerUserID       uint   `json:"-"`
+	IsPrivate         bool   `gorm:"default: FALSE; NOT NULL" json:"-"`
 }
 
 type CreateQuestionOptions struct {
@@ -75,50 +69,6 @@ func (db *questions) Create(ctx context.Context, opts CreateQuestionOptions) (*Q
 		IsPrivate:         opts.IsPrivate,
 	}
 	return &question, db.WithContext(ctx).Create(&question).Error
-}
-
-type UpdateQuestionCensorOptions struct {
-	ContentCensorMetadata json.RawMessage
-	AnswerCensorMetadata  json.RawMessage
-}
-
-func (db *questions) UpdateCensor(ctx context.Context, id uint, opts UpdateQuestionCensorOptions) error {
-	question, err := db.GetByID(ctx, id)
-	if err != nil {
-		return errors.Wrap(err, "get by ID")
-	}
-
-	contentCensorMetadata := question.ContentCensorMetadata
-	if checkTextCensorResponseValid(opts.ContentCensorMetadata) {
-		contentCensorMetadata = datatypes.JSON(opts.ContentCensorMetadata)
-	}
-	answerCensorMetadata := question.AnswerCensorMetadata
-	if checkTextCensorResponseValid(opts.AnswerCensorMetadata) {
-		answerCensorMetadata = datatypes.JSON(opts.AnswerCensorMetadata)
-	}
-
-	return db.WithContext(ctx).Model(&Question{}).Where("id = ?", id).Updates(&Question{
-		ContentCensorMetadata: contentCensorMetadata,
-		AnswerCensorMetadata:  answerCensorMetadata,
-	}).Error
-}
-
-func checkTextCensorResponseValid(raw json.RawMessage) bool {
-	if len(raw) == 0 {
-		return false
-	}
-
-	if bytes.EqualFold(raw, []byte("null")) {
-		return false
-	}
-
-	var response struct {
-		SourceName string `json:"source_name"`
-	}
-	if err := json.Unmarshal(raw, &response); err != nil {
-		return false
-	}
-	return response.SourceName != ""
 }
 
 var ErrQuestionNotExist = errors.New("提问不存在")

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TreeBox Pixel</title>
+  <link rel="stylesheet" href="https://unpkg.com/@e99p1ant/neko-pixel-umd@0.0.21/style.css">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --accent: #0f766e;
+      --warn-bg: #fff7ed;
+      --warn-border: #fdba74;
+      --warn-text: #9a3412;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(circle at top, rgba(15, 118, 110, 0.10), transparent 28%),
+        var(--bg);
+      color: var(--text);
+    }
+
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .notice {
+      margin-bottom: 16px;
+      padding: 14px 16px;
+      border: 1px solid var(--warn-border);
+      border-radius: 14px;
+      background: var(--warn-bg);
+      color: var(--warn-text);
+      line-height: 1.7;
+      font-size: 14px;
+    }
+
+    .app-shell {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--card);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="notice">
+      This shell is served by the frontend application. The backend only proxies authenticated requests under <code>/pixel/*</code>.
+    </section>
+
+    <section class="app-shell">
+      <div id="app"></div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const apiBase = (params.get("apiBase") || "").trim().replace(/\/$/, "");
+      window.NEKO_CONFIG = {
+        pixelBaseURL: apiBase ? apiBase + "/pixel" : "/pixel",
+      };
+    })();
+  </script>
+  <script src="https://unpkg.com/@e99p1ant/neko-pixel-umd@0.0.21/neko-pixel-app.umd.js"></script>
+</body>
+</html>

@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const AUTH_TOKEN_COOKIE_NAME = "nekobox_token"
+// Keep both cookie names during the TreeBox rename window.
+const AUTH_TOKEN_COOKIE_NAMES = ["treebox_token", "nekobox_token"]
 
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl
-  const token = request.cookies.get(AUTH_TOKEN_COOKIE_NAME)?.value
+  const token = AUTH_TOKEN_COOKIE_NAMES
+    .map((name) => request.cookies.get(name)?.value?.trim() || "")
+    .find(Boolean)
 
   if (pathname === "/login" || pathname === "/register") {
     if (token) {

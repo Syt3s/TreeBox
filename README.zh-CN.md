@@ -1,32 +1,30 @@
 <h1 align="center">
 <img src="https://box-user-assets.n3ko.cc/public/Neko.png" width=100px/>
 
-NekoBox
+TreeBox
 </h1>
 
 <p align="center">
 匿名提问箱 / Anonymous Question Box
 </p>
 <p align="center">
-<a href="https://goreportcard.com/badge/github.com/wuhan005/NekoBox">
-    <img src="https://github.com/wuhan005/NekoBox/workflows/Go/badge.svg" alt="Go Report Card">
+<a href="https://goreportcard.com/badge/github.com/syt3s/TreeBox">
+    <img src="https://github.com/syt3s/TreeBox/workflows/Go/badge.svg" alt="Go Report Card">
 </a>
-<a href="https://sourcegraph.com/github.com/wuhan005/NekoBox">
+<a href="https://sourcegraph.com/github.com/syt3s/TreeBox">
     <img src="https://img.shields.io/badge/view%20on-Sourcegraph-brightgreen.svg?logo=sourcegraph" alt="Sourcegraph">
 </a>
-<a href="https://deepsource.io/gh/wuhan005/NekoBox/?ref=repository-badge">
-    <img src="https://deepsource.io/gh/wuhan005/NekoBox.svg/?label=active+issues&token=7nuU5C-4QG3CP_5g9qFf3Bl9" alt="DeepSource">
+<a href="https://deepsource.io/gh/syt3s/TreeBox/?ref=repository-badge">
+    <img src="https://deepsource.io/gh/syt3s/TreeBox.svg/?label=active+issues&token=7nuU5C-4QG3CP_5g9qFf3Bl9" alt="DeepSource">
 </a>
-<a href="https://goreportcard.com/report/github.com/wuhan005/NekoBox">
-    <img src="https://goreportcard.com/badge/github.com/wuhan005/NekoBox" alt="Go Report Card">
+<a href="https://goreportcard.com/report/github.com/syt3s/TreeBox">
+    <img src="https://goreportcard.com/badge/github.com/syt3s/TreeBox" alt="Go Report Card">
 <a>
 </p>
 
 <p align="center">
 <a href="/README.zh-CN.md">简体中文</a> | <a href="/README.md">English</a>
 </p>
-
-![Screenshot](./dev/screenshot.svg)
 
 ## 部署
 
@@ -40,10 +38,10 @@ NekoBox
 
 ```bash
 # 拉取最新镜像
-docker pull ghcr.io/wuhan005/nekobox:master
+docker pull ghcr.io/syt3s/treebox:master
 
 # 启动容器（监听 80 端口并挂载配置文件）
-docker run -dt --name NekoBox -p 80:80 -v $(pwd)/app.ini:/app/conf/app.ini ghcr.io/wuhan005/nekobox:master
+docker run -dt --name TreeBox -p 80:80 -v $(pwd)/app.ini:/app/conf/app.ini ghcr.io/syt3s/treebox:master
 ```
 
 ### 从源码构建
@@ -58,16 +56,16 @@ docker run -dt --name NekoBox -p 80:80 -v $(pwd)/app.ini:/app/conf/app.ini ghcr.
 
 ```bash
 # 克隆源码
-git clone https://github.com/wuhan005/NekoBox.git
+git clone https://github.com/syt3s/TreeBox.git
 
 # 进入项目目录
-cd NekoBox
+cd TreeBox
 
 # 构建当前机器系统与架构的二进制文件
-go build -v -ldflags "-w -s -extldflags '-static'" -o NekoBox ./cmd/
+go build -v -ldflags "-w -s -extldflags '-static'" -o TreeBox ./cmd/
 
 # 构建 Linux、AMD64 架构的二进制文件
-GOOS=linux GOARCH=amd64 go build -v -ldflags "-w -s -extldflags '-static'" -o NekoBox ./cmd/
+GOOS=linux GOARCH=amd64 go build -v -ldflags "-w -s -extldflags '-static'" -o TreeBox ./cmd/
 ```
 
 3. 编辑配置文件
@@ -81,7 +79,7 @@ cp conf/app.sample.ini conf/app.ini
 4. 运行
 
 ```bash
-./NekoBox web
+./TreeBox web
 ```
 
 ## 开源协议
