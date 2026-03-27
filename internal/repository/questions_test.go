@@ -34,6 +34,7 @@ func TestQuestions(t *testing.T) {
 		{"AnswerByID", testQuestionsAnswerByID},
 		{"DeleteByID", testQuestionsDeleteByID},
 		{"Count", testQuestionsCount},
+		{"CountUnread", testQuestionsCountUnread},
 		{"SetPrivate", testQuestionsSetPrivate},
 		{"SetPublic", testQuestionsSetPublic},
 	} {
@@ -399,6 +400,66 @@ func testQuestionsCount(t *testing.T, ctx context.Context, db *questionsReposito
 
 		want := int64(0)
 		require.Equal(t, want, got)
+	})
+}
+
+func testQuestionsCountUnread(t *testing.T, ctx context.Context, db *questionsRepository) {
+	_, err := db.Create(ctx, CreateQuestionOptions{
+		FromIP:            "114.5.1.4",
+		UserID:            1,
+		Content:           "Content - 1",
+		ReceiveReplyEmail: "i@github.red",
+		AskerUserID:       1,
+	})
+	require.Nil(t, err)
+
+	_, err = db.Create(ctx, CreateQuestionOptions{
+		FromIP:            "114.5.1.4",
+		UserID:            1,
+		Content:           "Content - 2",
+		ReceiveReplyEmail: "i@github.red",
+		AskerUserID:       1,
+	})
+	require.Nil(t, err)
+
+	_, err = db.Create(ctx, CreateQuestionOptions{
+		FromIP:            "114.5.1.4",
+		UserID:            1,
+		Content:           "Content - 3",
+		ReceiveReplyEmail: "i@github.red",
+		AskerUserID:       1,
+		IsPrivate:         true,
+	})
+	require.Nil(t, err)
+
+	_, err = db.Create(ctx, CreateQuestionOptions{
+		FromIP:            "114.5.1.4",
+		UserID:            2,
+		Content:           "Content - 4",
+		ReceiveReplyEmail: "i@github.red",
+		AskerUserID:       1,
+	})
+	require.Nil(t, err)
+
+	err = db.AnswerByID(ctx, 2, "Answer - 2")
+	require.Nil(t, err)
+
+	t.Run("show private", func(t *testing.T) {
+		got, err := db.CountUnread(ctx, 1, true)
+		require.Nil(t, err)
+		require.Equal(t, int64(2), got)
+	})
+
+	t.Run("hide private", func(t *testing.T) {
+		got, err := db.CountUnread(ctx, 1, false)
+		require.Nil(t, err)
+		require.Equal(t, int64(1), got)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		got, err := db.CountUnread(ctx, 404, true)
+		require.Nil(t, err)
+		require.Equal(t, int64(0), got)
 	})
 }
 

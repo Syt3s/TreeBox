@@ -169,3 +169,9 @@ export interface MarkQuestionViewedResponse {
   success: boolean
   viewed_at?: string
 }
+
+export interface MarkAllQuestionsViewedResponse {
+  success: boolean
+  viewed_at?: string
+  viewed_count: number
+}

@@ -30,7 +30,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      router.replace(redirectTo || `/box/${user.domain}`)
+      router.replace(redirectTo || "/")
     }
   }, [authLoading, redirectTo, router, user])
 
@@ -64,7 +64,7 @@ export default function LoginPage() {
 
       setUser(response.user)
       toast(response.message || "登录成功", "success")
-      router.replace(redirectTo || `/box/${response.user.domain}`)
+      router.replace(redirectTo || "/")
     } catch (error) {
       const message = error instanceof Error ? error.message : "登录失败，请稍后重试"
       toast(message, "error")

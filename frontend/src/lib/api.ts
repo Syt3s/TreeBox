@@ -11,6 +11,7 @@ import type {
   GetUserResponse,
   LoginRequest,
   LoginResponse,
+  MarkAllQuestionsViewedResponse,
   MarkQuestionViewedResponse,
   QuestionStatsResponse,
   RegisterRequest,
@@ -274,6 +275,11 @@ export const api = {
       },
 
       stats: () => request<QuestionStatsResponse>("/api/v2/user/questions/stats"),
+
+      markAllViewed: () =>
+        request<MarkAllQuestionsViewedResponse>("/api/v2/user/questions/viewed", {
+          method: "POST",
+        }),
 
       markViewed: (questionId: number) =>
         request<MarkQuestionViewedResponse>(`/api/v2/user/questions/${encodePathSegment(questionId)}/viewed`, {

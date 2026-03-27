@@ -365,6 +365,67 @@ func TestMarkUserQuestionViewed(t *testing.T) {
 	require.NotEmpty(t, response.Data.ViewedAt)
 }
 
+func TestMarkAllUserQuestionsViewed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	oldQuestions := repository.Questions
+	t.Cleanup(func() {
+		repository.Questions = oldQuestions
+	})
+
+	repository.Questions = &stubQuestionRepository{
+		questionsByID: map[uint]*model.Question{
+			1: {
+				Model:  dbutil.Model{ID: 1},
+				UserID: 42,
+			},
+			2: {
+				Model:  dbutil.Model{ID: 2},
+				UserID: 42,
+			},
+			3: {
+				Model:    dbutil.Model{ID: 3},
+				UserID:   42,
+				ViewedAt: ptrTime(time.Now().Add(-time.Hour)),
+			},
+			4: {
+				Model:  dbutil.Model{ID: 4},
+				UserID: 99,
+			},
+		},
+	}
+
+	engine := gin.New()
+	engine.Use(appcontext.Contexter(), middleware.ErrorHandler(), testAuthMiddleware(&model.User{
+		Model: gorm.Model{ID: 42},
+	}))
+
+	apiRoutes := engine.Group("/api/v2")
+	apiRoutes.Use(appcontext.APIEndpoint())
+	apiRoutes.POST("/user/questions/viewed", appcontext.Wrap(MarkAllUserQuestionsViewed))
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v2/user/questions/viewed", nil)
+
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var response struct {
+		Code int `json:"code"`
+		Data struct {
+			Success     bool   `json:"success"`
+			ViewedAt    string `json:"viewed_at"`
+			ViewedCount int64  `json:"viewed_count"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+	require.Equal(t, 0, response.Code)
+	require.True(t, response.Data.Success)
+	require.Equal(t, int64(2), response.Data.ViewedCount)
+	require.NotEmpty(t, response.Data.ViewedAt)
+}
+
 type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -479,6 +540,18 @@ func (s *stubQuestionRepository) MarkViewed(_ context.Context, id uint, viewedAt
 	return nil
 }
 
+func (s *stubQuestionRepository) MarkAllViewed(_ context.Context, userID uint, viewedAt time.Time) (int64, error) {
+	var marked int64
+	for _, question := range s.questionsByID {
+		if question.UserID != userID || question.ViewedAt != nil {
+			continue
+		}
+		question.ViewedAt = &viewedAt
+		marked++
+	}
+	return marked, nil
+}
+
 func (s *stubQuestionRepository) DeleteByID(context.Context, uint) error {
 	return errors.New("not implemented")
 }
@@ -508,6 +581,10 @@ func cloneQuestion(question *model.Question) *model.Question {
 	}
 	cloned := *question
 	return &cloned
+}
+
+func ptrTime(value time.Time) *time.Time {
+	return &value
 }
 
 type stubReplyEmailSender struct {

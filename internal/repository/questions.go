@@ -26,6 +26,7 @@ type QuestionRepository interface {
 	GetByAskUserID(ctx context.Context, userID uint, opts GetQuestionsByAskUserIDOptions) ([]*model.Question, error)
 	AnswerByID(ctx context.Context, id uint, answer string) error
 	MarkViewed(ctx context.Context, id uint, viewedAt time.Time) error
+	MarkAllViewed(ctx context.Context, userID uint, viewedAt time.Time) (int64, error)
 	DeleteByID(ctx context.Context, id uint) error
 	Count(ctx context.Context, userID uint, opts GetQuestionsCountOptions) (int64, error)
 	CountUnread(ctx context.Context, userID uint, showPrivate bool) (int64, error)
@@ -172,6 +173,17 @@ func (db *questionsRepository) MarkViewed(ctx context.Context, id uint, viewedAt
 	return nil
 }
 
+func (db *questionsRepository) MarkAllViewed(ctx context.Context, userID uint, viewedAt time.Time) (int64, error) {
+	result := db.WithContext(ctx).
+		Model(&model.Question{}).
+		Where("user_id = ? AND viewed_at IS NULL", userID).
+		Update("viewed_at", viewedAt)
+	if result.Error != nil {
+		return 0, errors.Wrap(result.Error, "mark all questions viewed")
+	}
+	return result.RowsAffected, nil
+}
+
 func (db *questionsRepository) DeleteByID(ctx context.Context, id uint) error {
 	var question model.Question
 	if err := db.WithContext(ctx).First(&question, id).Error; err != nil {
@@ -208,7 +220,9 @@ func (db *questionsRepository) Count(ctx context.Context, userID uint, opts GetQ
 }
 
 func (db *questionsRepository) CountUnread(ctx context.Context, userID uint, showPrivate bool) (int64, error) {
-	q := db.WithContext(ctx).Model(&model.Question{}).Where(`user_id = ? AND viewed_at IS NULL`, userID)
+	q := db.WithContext(ctx).
+		Model(&model.Question{}).
+		Where(`user_id = ? AND viewed_at IS NULL AND answer = ''`, userID)
 	if !showPrivate {
 		q = q.Where(`is_private = ?`, false)
 	}

@@ -69,7 +69,7 @@ func runWeb(ctx *cli.Context) error {
 
 	r := router.New(tracing.Middleware(branding.ProductName))
 	if err := r.Run(fmt.Sprintf(":%d", config.Server.Port)); err != nil {
-		return errors.Wrap(err, "run gin server")
+		return errors.Wrap(err, "启动web服务器失败")
 	}
 
 	return nil

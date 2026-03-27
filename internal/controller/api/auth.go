@@ -403,6 +403,12 @@ type MarkUserQuestionViewedResponse struct {
 	ViewedAt *time.Time `json:"viewed_at,omitempty"`
 }
 
+type MarkAllUserQuestionsViewedResponse struct {
+	Success     bool       `json:"success"`
+	ViewedAt    *time.Time `json:"viewed_at,omitempty"`
+	ViewedCount int64      `json:"viewed_count"`
+}
+
 func MarkUserQuestionViewed(ctx appctx.Context) error {
 	logger := logging.FromContext(ctx.Request().Context()).With(
 		zap.String("handler", "api.mark_user_question_viewed"),
@@ -438,6 +444,31 @@ func MarkUserQuestionViewed(ctx appctx.Context) error {
 	return ctx.JSON(MarkUserQuestionViewedResponse{
 		Success:  true,
 		ViewedAt: question.ViewedAt,
+	})
+}
+
+func MarkAllUserQuestionsViewed(ctx appctx.Context) error {
+	logger := logging.FromContext(ctx.Request().Context()).With(
+		zap.String("handler", "api.mark_all_user_questions_viewed"),
+		zap.Uint("user_id", ctx.User.ID),
+	)
+
+	viewedAt := time.Now()
+	viewedCount, err := repository.Questions.MarkAllViewed(ctx.Request().Context(), ctx.User.ID, viewedAt)
+	if err != nil {
+		logger.Error("failed to mark all questions viewed", zap.Error(err))
+		return ctx.JSONError(50000, "閼惧嘲褰囬梻顕€顣芥径杈Е")
+	}
+
+	var responseViewedAt *time.Time
+	if viewedCount > 0 {
+		responseViewedAt = &viewedAt
+	}
+
+	return ctx.JSON(MarkAllUserQuestionsViewedResponse{
+		Success:     true,
+		ViewedAt:    responseViewedAt,
+		ViewedCount: viewedCount,
 	})
 }
 

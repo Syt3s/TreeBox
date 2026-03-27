@@ -28,7 +28,7 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      router.replace(`/box/${user.domain}`)
+      router.replace("/")
     }
   }, [authLoading, router, user])
 
@@ -71,7 +71,7 @@ export default function RegisterPage() {
 
       setUser(response.user)
       toast(response.message || "注册成功", "success")
-      router.replace(`/box/${response.user.domain}`)
+      router.replace("/")
     } catch (error) {
       const message = error instanceof Error ? error.message : "注册失败，请稍后重试"
       toast(message, "error")

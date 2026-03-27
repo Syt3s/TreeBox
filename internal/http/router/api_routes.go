@@ -20,6 +20,7 @@ func registerAPIRoutes(r *gin.Engine, authRequired gin.HandlerFunc) {
 	userGroup := apiV2.Group("/user")
 	userGroup.GET("/questions", authRequired, appctx.Wrap(api.GetUserQuestions))
 	userGroup.GET("/questions/stats", authRequired, appctx.Wrap(api.GetUserQuestionStats))
+	userGroup.POST("/questions/viewed", authRequired, appctx.Wrap(api.MarkAllUserQuestionsViewed))
 	userGroup.POST("/questions/:questionID/viewed", authRequired, appctx.Wrap(api.MarkUserQuestionViewed))
 	userGroup.POST("/profile", authRequired, appctx.Wrap(api.UpdateProfile))
 	userGroup.POST("/avatar", authRequired, appctx.Wrap(api.UploadAvatar))

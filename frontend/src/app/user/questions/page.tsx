@@ -20,7 +20,6 @@ export default function UserQuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [openingQuestionId, setOpeningQuestionId] = useState<number | null>(null)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(true)
 
@@ -53,6 +52,29 @@ export default function UserQuestionsPage() {
     [user]
   )
 
+  const markAllQuestionsViewed = useCallback(async () => {
+    if (!user) {
+      return
+    }
+
+    const response = await api.user.questions.markAllViewed()
+    if (!response.viewed_count) {
+      return
+    }
+
+    setQuestions((current) =>
+      current.map((question) =>
+        question.viewed_at
+          ? question
+          : {
+              ...question,
+              viewed_at: response.viewed_at || new Date().toISOString(),
+            }
+      )
+    )
+    emitQuestionStatsRefresh()
+  }, [user])
+
   useEffect(() => {
     if (authLoading) {
       return
@@ -68,6 +90,9 @@ export default function UserQuestionsPage() {
     const bootstrap = async () => {
       try {
         await loadQuestions()
+        if (!cancelled) {
+          await markAllQuestionsViewed()
+        }
       } catch (error) {
         if (cancelled) {
           return
@@ -82,7 +107,7 @@ export default function UserQuestionsPage() {
     return () => {
       cancelled = true
     }
-  }, [authLoading, loadQuestions, router, toast, user])
+  }, [authLoading, loadQuestions, markAllQuestionsViewed, router, toast, user])
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -95,30 +120,12 @@ export default function UserQuestionsPage() {
     })
   }
 
-  const handleOpenQuestion = async (question: Question) => {
+  const handleOpenQuestion = (questionId: number) => {
     if (!user) {
       return
     }
 
-    setOpeningQuestionId(question.id)
-
-    if (!question.viewed_at) {
-      try {
-        const response = await api.user.questions.markViewed(question.id)
-        setQuestions((current) =>
-          current.map((item) =>
-            item.id === question.id
-              ? { ...item, viewed_at: response.viewed_at || new Date().toISOString() }
-              : item
-          )
-        )
-        emitQuestionStatsRefresh()
-      } catch {
-        // Let the detail page retry marking as viewed if this request fails.
-      }
-    }
-
-    router.push(`/box/${user.domain}/${question.id}`)
+    router.push(`/box/${user.domain}/${questionId}`)
   }
 
   if (authLoading || loading) {
@@ -157,7 +164,7 @@ export default function UserQuestionsPage() {
             <CardContent className="py-14 text-center">
               <p className="text-lg font-medium text-gray-900 dark:text-gray-50">还没有收到问题</p>
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                分享你的提问箱链接后，新的提问会在这里出现。
+                分享你的提问箱链接后，新的提问会出现在这里。
               </p>
               <Button
                 type="button"
@@ -173,24 +180,14 @@ export default function UserQuestionsPage() {
           <div className="space-y-4">
             {questions.map((question) => {
               const answered = Boolean(question.answer)
-              const unread = !question.viewed_at
 
               return (
-                <Card
-                  key={question.id}
-                  className={unread ? "border-sky-100 bg-white/95 shadow-lg dark:border-sky-900/40" : "shadow-md"}
-                >
+                <Card key={question.id} className="shadow-md">
                   <CardContent className="pt-6">
                     <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                       <div className="space-y-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-xs text-gray-500">{formatDate(question.created_at)}</span>
-                          {unread && (
-                            <span
-                              aria-label="new question"
-                              className="inline-flex h-2.5 w-2.5 rounded-full bg-sky-500 ring-4 ring-sky-100 dark:bg-cyan-400 dark:ring-cyan-500/10"
-                            />
-                          )}
                           {answered ? (
                             <Badge variant="secondary">已回答</Badge>
                           ) : (
@@ -209,14 +206,9 @@ export default function UserQuestionsPage() {
                       <Button
                         type="button"
                         variant={answered ? "outline" : "default"}
-                        disabled={openingQuestionId === question.id}
-                        onClick={() => void handleOpenQuestion(question)}
+                        onClick={() => handleOpenQuestion(question.id)}
                       >
-                        {openingQuestionId === question.id
-                          ? "打开中..."
-                          : answered
-                            ? "查看或编辑回答"
-                            : "去回答"}
+                        {answered ? "查看或编辑回答" : "去回答"}
                       </Button>
                     </div>
 
