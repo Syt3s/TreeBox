@@ -11,9 +11,12 @@ import type {
   GetUserResponse,
   LoginRequest,
   LoginResponse,
+  MarkQuestionViewedResponse,
+  QuestionStatsResponse,
   RegisterRequest,
   RegisterResponse,
   SetQuestionPrivateResponse,
+  UploadUserAssetResponse,
   UpdateHarassmentRequest,
   UpdateHarassmentResponse,
   UpdateProfileRequest,
@@ -89,11 +92,12 @@ async function parseResponseError(response: Response) {
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const method = (options.method || "GET").toUpperCase()
   const hasBody = options.body != null
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string> | undefined),
   }
 
-  if (hasBody && method !== "GET" && method !== "HEAD") {
+  if (hasBody && !isFormData && method !== "GET" && method !== "HEAD") {
     headers["Content-Type"] = headers["Content-Type"] || "application/json"
   }
 
@@ -231,6 +235,24 @@ export const api = {
         body: JSON.stringify(data),
       }),
 
+    uploadAvatar: (file: File) => {
+      const formData = new FormData()
+      formData.append("file", file)
+      return request<UploadUserAssetResponse>("/api/v2/user/avatar", {
+        method: "POST",
+        body: formData,
+      })
+    },
+
+    uploadBackground: (file: File) => {
+      const formData = new FormData()
+      formData.append("file", file)
+      return request<UploadUserAssetResponse>("/api/v2/user/background", {
+        method: "POST",
+        body: formData,
+      })
+    },
+
     updateHarassment: (data: UpdateHarassmentRequest) =>
       request<UpdateHarassmentResponse>("/api/v2/user/harassment", {
         method: "POST",
@@ -250,6 +272,13 @@ export const api = {
         const query = searchParams.toString()
         return request<GetQuestionsResponse>(`/api/v2/user/questions${query ? `?${query}` : ""}`)
       },
+
+      stats: () => request<QuestionStatsResponse>("/api/v2/user/questions/stats"),
+
+      markViewed: (questionId: number) =>
+        request<MarkQuestionViewedResponse>(`/api/v2/user/questions/${encodePathSegment(questionId)}/viewed`, {
+          method: "POST",
+        }),
     },
 
     exportData: () => request<ExportDataResponse>("/api/v2/user/export"),

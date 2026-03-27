@@ -32,7 +32,7 @@ TreeBox
 
 1. Create a Configuration File
 
-Create a configuration file `app.ini` based on the template `conf/app.sample.ini`. Adjust the settings as needed by
+Create a configuration file `app.ini` based on the template `configs/app.sample.ini`. Adjust the settings as needed by
 referring to the comments in the file.
 
 2. Start the Container
@@ -42,7 +42,7 @@ referring to the comments in the file.
 docker pull ghcr.io/syt3s/treebox:master
 
 # Start the container (listen on port 80 and mount the configuration file)
-docker run -dt --name TreeBox -p 80:80 -v $(pwd)/app.ini:/app/conf/app.ini ghcr.io/syt3s/treebox:master
+docker run -dt --name TreeBox -p 80:80 -v $(pwd)/app.ini:/home/app/configs/app.ini ghcr.io/syt3s/treebox:master
 ```
 
 ### Build from Source
@@ -63,25 +63,41 @@ git clone https://github.com/syt3s/TreeBox.git
 cd TreeBox
 
 # Build the binary for the current system and architecture
-go build -v -ldflags "-w -s -extldflags '-static'" -o TreeBox ./cmd/
+go build -v -ldflags "-w -s -extldflags '-static'" -o TreeBox ./cmd/treebox
 
 # Build the binary for Linux, AMD64 architecture
-GOOS=linux GOARCH=amd64 go build -v -ldflags "-w -s -extldflags '-static'" -o TreeBox ./cmd/
+GOOS=linux GOARCH=amd64 go build -v -ldflags "-w -s -extldflags '-static'" -o TreeBox ./cmd/treebox
 ```
 
 3. Edit the Configuration File
 
-Create a configuration file based on the template `conf/app.sample.ini`. Adjust the settings as needed by referring to
+Create a configuration file based on the template `configs/app.sample.ini`. Adjust the settings as needed by referring to
 the comments in the file.
 
 ```bash
-cp conf/app.sample.ini conf/app.ini
+cp configs/app.sample.ini configs/app.ini
 ```
 
 4. Run
 
 ```bash
 ./TreeBox web
+```
+
+## Project Layout
+
+```text
+cmd/treebox/          application entrypoint
+configs/              configuration templates
+internal/app/         application bootstrap and CLI commands
+internal/controller/  MVC controllers for HTTP-facing use cases
+internal/http/        HTTP router, middleware, request context
+internal/model/       domain entities
+internal/repository/  data access and persistence repositories
+internal/security/    auth and external security integrations
+internal/logging/     logger setup
+internal/tracing/     tracing middleware and telemetry wiring
+frontend/             frontend application
 ```
 
 ## License

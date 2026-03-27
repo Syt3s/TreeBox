@@ -2,17 +2,25 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Header } from "@/components/layout/header"
+import { Textarea } from "@/components/ui/textarea"
 import { Footer } from "@/components/layout/footer"
+import { Header } from "@/components/layout/header"
 import { useToast } from "@/components/ui/toast"
 import { api } from "@/lib/api"
+import { emitQuestionStatsRefresh } from "@/lib/question-stats"
 import type { PublicUser, Question } from "@/types"
 
 export default function QuestionDetailPage() {
@@ -38,10 +46,25 @@ export default function QuestionDetailPage() {
     }
 
     const response = await api.questions.get(domain, questionId)
-    if (response.success && response.question) {
-      setQuestion(response.question)
+    if (response.question) {
+      let nextQuestion = response.question
+
+      if (response.can_delete && !response.question.viewed_at) {
+        try {
+          const viewedResponse = await api.user.questions.markViewed(questionId)
+          nextQuestion = {
+            ...response.question,
+            viewed_at: viewedResponse.viewed_at || new Date().toISOString(),
+          }
+          emitQuestionStatsRefresh()
+        } catch {
+          nextQuestion = response.question
+        }
+      }
+
+      setQuestion(nextQuestion)
       setCanDelete(Boolean(response.can_delete))
-      setAnswerForm({ answer: response.question.answer || "" })
+      setAnswerForm({ answer: nextQuestion.answer || "" })
     } else {
       setQuestion(null)
     }
@@ -52,10 +75,8 @@ export default function QuestionDetailPage() {
       return
     }
 
-    const res = await api.users.get(domain)
-    if (res.success) {
-      setUser(res.user)
-    }
+    const response = await api.users.get(domain)
+    setUser(response.user)
   }, [domain])
 
   useEffect(() => {
@@ -63,20 +84,20 @@ export default function QuestionDetailPage() {
       return
     }
 
-    let active = true
+    let cancelled = false
 
     const bootstrap = async () => {
       setLoading(true)
       try {
         await Promise.all([loadPageUser(), loadQuestion()])
       } catch (error) {
-        if (!active) {
+        if (cancelled) {
           return
         }
         const message = error instanceof Error ? error.message : "加载问题失败，请稍后重试"
         toast(message, "error")
       } finally {
-        if (active) {
+        if (!cancelled) {
           setLoading(false)
         }
       }
@@ -85,12 +106,12 @@ export default function QuestionDetailPage() {
     void bootstrap()
 
     return () => {
-      active = false
+      cancelled = true
     }
   }, [domain, questionId, loadPageUser, loadQuestion, toast])
 
-  const handleSubmitAnswer = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmitAnswer = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
 
     if (!domain?.trim() || !Number.isFinite(questionId) || questionId <= 0) {
       toast("问题地址无效，请刷新后重试", "error")
@@ -104,12 +125,12 @@ export default function QuestionDetailPage() {
     }
 
     setSubmitting(true)
+
     try {
       const response = await api.questions.answer(domain, questionId, { answer })
-      if (response.success) {
-        toast(response.message || "回答成功", "success")
-        await loadQuestion()
-      }
+      toast(response.message || "回答已发布", "success")
+      await loadQuestion()
+      emitQuestionStatsRefresh()
     } catch (error) {
       const message = error instanceof Error ? error.message : "回答失败，请稍后重试"
       toast(message, "error")
@@ -125,12 +146,12 @@ export default function QuestionDetailPage() {
     }
 
     setSubmitting(true)
+
     try {
       const response = await api.questions.delete(domain, questionId)
-      if (response.success) {
-        toast(response.message || "删除成功", "success")
-        router.push(`/box/${domain}`)
-      }
+      toast(response.message || "提问已删除", "success")
+      emitQuestionStatsRefresh()
+      router.push(`/user/questions`)
     } catch (error) {
       const message = error instanceof Error ? error.message : "删除失败，请稍后重试"
       toast(message, "error")
@@ -147,12 +168,11 @@ export default function QuestionDetailPage() {
     }
 
     setSubmitting(true)
+
     try {
       const response = await api.questions.setPrivate(domain, questionId)
-      if (response.success) {
-        toast(response.message || "设置成功", "success")
-        await loadQuestion()
-      }
+      toast(response.message || "已设为私密", "success")
+      await loadQuestion()
     } catch (error) {
       const message = error instanceof Error ? error.message : "设置失败，请稍后重试"
       toast(message, "error")
@@ -168,12 +188,11 @@ export default function QuestionDetailPage() {
     }
 
     setSubmitting(true)
+
     try {
       const response = await api.questions.setPublic(domain, questionId)
-      if (response.success) {
-        toast(response.message || "设置成功", "success")
-        await loadQuestion()
-      }
+      toast(response.message || "已设为公开", "success")
+      await loadQuestion()
     } catch (error) {
       const message = error instanceof Error ? error.message : "设置失败，请稍后重试"
       toast(message, "error")
@@ -196,12 +215,14 @@ export default function QuestionDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <Header />
         <div className="flex min-h-[60vh] items-center justify-center">
           <div className="text-center">
             <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
-            <p className="mt-4 text-gray-600 dark:text-gray-400">加载中...</p>
+            <p className="mt-4 text-gray-600 dark:text-gray-400">正在加载问题...</p>
           </div>
         </div>
+        <Footer />
       </div>
     )
   }
@@ -210,13 +231,17 @@ export default function QuestionDetailPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
         <Header />
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <div className="text-center">
-            <p className="text-gray-600 dark:text-gray-400">问题不存在或你没有权限查看。</p>
-            <Button variant="outline" className="mt-4" onClick={() => router.push(`/box/${domain}`)}>
-              返回提问箱
-            </Button>
-          </div>
+        <div className="flex min-h-[60vh] items-center justify-center px-4">
+          <Card className="w-full max-w-xl text-center shadow-md">
+            <CardContent className="py-12">
+              <p className="text-lg font-medium text-gray-900 dark:text-gray-50">
+                这个问题不存在，或者你没有权限查看。
+              </p>
+              <Button type="button" variant="outline" className="mt-4" onClick={() => router.push(`/box/${domain}`)}>
+                返回提问箱
+              </Button>
+            </CardContent>
+          </Card>
         </div>
         <Footer />
       </div>
@@ -226,18 +251,19 @@ export default function QuestionDetailPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <Header />
+
       <div className="container mx-auto px-4 py-8">
         <div className="mx-auto max-w-3xl space-y-6">
-          <Button variant="ghost" onClick={() => router.push(`/box/${domain}`)} className="mb-4">
+          <Button type="button" variant="ghost" onClick={() => router.push(`/box/${domain}`)}>
             返回提问箱
           </Button>
 
           <Card className="shadow-lg">
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Avatar>
-                    <AvatarImage src={user?.avatar || "/default-avatar.png"} alt={user?.name || "User"} />
+                    <AvatarImage src={user?.avatar} alt={user?.name || domain} />
                     <AvatarFallback>{user?.name?.charAt(0).toUpperCase() || "U"}</AvatarFallback>
                   </Avatar>
                   <div>
@@ -245,39 +271,49 @@ export default function QuestionDetailPage() {
                     <p className="text-xs text-gray-500">{formatDate(question.created_at)}</p>
                   </div>
                 </div>
-                {question.is_private && <Badge variant="secondary">私密</Badge>}
+
+                <div className="flex items-center gap-2">
+                  {!question.answer && (
+                    <Badge
+                      variant="outline"
+                      className="border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+                    >
+                      待回答
+                    </Badge>
+                  )}
+                  {question.is_private && <Badge variant="outline">私密</Badge>}
+                </div>
               </div>
             </CardHeader>
+
             <CardContent>
-              <div className="mb-6">
-                <p className="text-lg text-gray-900 dark:text-gray-100">{question.content}</p>
-              </div>
+              <p className="text-lg leading-8 text-gray-900 dark:text-gray-100">{question.content}</p>
 
               {question.answer && (
                 <>
                   <Separator className="my-6" />
-                  <div className="rounded-lg bg-blue-50 p-6 dark:bg-blue-900/20">
-                    <p className="mb-3 text-sm font-medium text-blue-800 dark:text-blue-200">回答</p>
+                  <div className="rounded-2xl bg-sky-50 p-6 dark:bg-sky-950/30">
+                    <p className="mb-3 text-sm font-medium text-sky-800 dark:text-sky-200">回答</p>
                     <p className="text-gray-900 dark:text-gray-100">{question.answer}</p>
                     <p className="mt-3 text-right text-sm text-gray-600 dark:text-gray-400">
-                      来自 @{user?.name || domain} 的回答
+                      来自 @{user?.name || domain} 的回复
                     </p>
                   </div>
                 </>
               )}
 
               {canDelete && (
-                <div className="mt-6 flex items-center justify-end gap-2">
+                <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
                   {question.is_private ? (
-                    <Button variant="outline" size="sm" onClick={handleSetPublic} disabled={submitting}>
+                    <Button type="button" variant="outline" size="sm" onClick={handleSetPublic} disabled={submitting}>
                       设为公开
                     </Button>
                   ) : (
-                    <Button variant="outline" size="sm" onClick={handleSetPrivate} disabled={submitting}>
+                    <Button type="button" variant="outline" size="sm" onClick={handleSetPrivate} disabled={submitting}>
                       设为私密
                     </Button>
                   )}
-                  <Button variant="destructive" size="sm" onClick={() => setShowDeleteDialog(true)}>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setShowDeleteDialog(true)}>
                     删除提问
                   </Button>
                 </div>
@@ -288,23 +324,23 @@ export default function QuestionDetailPage() {
           {canDelete && (
             <Card className="shadow-md">
               <CardHeader>
-                <CardTitle>回答问题</CardTitle>
+                <CardTitle>{question.answer ? "编辑回答" : "回答问题"}</CardTitle>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmitAnswer} className="space-y-4">
                   <div>
                     <Textarea
-                      placeholder="写下你的回答..."
-                      value={answerForm.answer}
-                      onChange={(e) => setAnswerForm({ answer: e.target.value })}
-                      rows={5}
+                      rows={6}
                       maxLength={1000}
                       className="resize-none"
+                      placeholder="写下你的回答..."
+                      value={answerForm.answer}
+                      onChange={(event) => setAnswerForm({ answer: event.target.value })}
                     />
                     <p className="mt-1 text-right text-xs text-gray-500">{answerForm.answer.length}/1000</p>
                   </div>
                   <Button type="submit" disabled={submitting}>
-                    {submitting ? "提交中..." : question.answer ? "更新回答" : "提交回答"}
+                    {submitting ? "提交中..." : question.answer ? "更新回答" : "发布回答"}
                   </Button>
                 </form>
               </CardContent>
@@ -316,19 +352,20 @@ export default function QuestionDetailPage() {
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>确认删除</DialogTitle>
-            <DialogDescription>删除后无法恢复。确认要删除这条提问吗？</DialogDescription>
+            <DialogTitle>确认删除这条提问？</DialogTitle>
+            <DialogDescription>删除后无法恢复，请谨慎操作。</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+            <Button type="button" variant="outline" onClick={() => setShowDeleteDialog(false)}>
               取消
             </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={submitting}>
+            <Button type="button" onClick={handleDelete} disabled={submitting}>
               确认删除
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       <Footer />
     </div>
   )

@@ -32,7 +32,7 @@ TreeBox
 
 1. 创建配置文件
 
-基于配置文件模板 `conf/app.sample.ini` 创建配置文件 `app.ini`，相关配置可参考注释进行调整。
+基于配置文件模板 `configs/app.sample.ini` 创建配置文件 `app.ini`，相关配置可参考注释进行调整。
 
 2. 启动容器
 
@@ -41,7 +41,7 @@ TreeBox
 docker pull ghcr.io/syt3s/treebox:master
 
 # 启动容器（监听 80 端口并挂载配置文件）
-docker run -dt --name TreeBox -p 80:80 -v $(pwd)/app.ini:/app/conf/app.ini ghcr.io/syt3s/treebox:master
+docker run -dt --name TreeBox -p 80:80 -v $(pwd)/app.ini:/home/app/configs/app.ini ghcr.io/syt3s/treebox:master
 ```
 
 ### 从源码构建
@@ -62,24 +62,38 @@ git clone https://github.com/syt3s/TreeBox.git
 cd TreeBox
 
 # 构建当前机器系统与架构的二进制文件
-go build -v -ldflags "-w -s -extldflags '-static'" -o TreeBox ./cmd/
+go build -v -ldflags "-w -s -extldflags '-static'" -o TreeBox ./cmd/treebox
 
 # 构建 Linux、AMD64 架构的二进制文件
-GOOS=linux GOARCH=amd64 go build -v -ldflags "-w -s -extldflags '-static'" -o TreeBox ./cmd/
+GOOS=linux GOARCH=amd64 go build -v -ldflags "-w -s -extldflags '-static'" -o TreeBox ./cmd/treebox
 ```
 
 3. 编辑配置文件
 
-基于配置文件模板 `conf/app.sample.ini` 创建配置文件，相关配置可参考注释进行调整。
+基于配置文件模板 `configs/app.sample.ini` 创建配置文件，相关配置可参考注释进行调整。
 
 ```bash
-cp conf/app.sample.ini conf/app.ini
+cp configs/app.sample.ini configs/app.ini
 ```
 
 4. 运行
 
 ```bash
 ./TreeBox web
+```
+
+## 项目结构
+
+```text
+cmd/treebox/          程序入口
+configs/              配置模板
+internal/app/         启动编排与 CLI 命令
+internal/http/        路由、处理器、中间件、请求上下文
+internal/db/          持久层与模型
+internal/security/    鉴权与安全集成
+internal/logging/     日志初始化
+internal/tracing/     链路追踪与观测
+frontend/             前端工程
 ```
 
 ## 开源协议

@@ -9,7 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/syt3s/TreeBox/internal/conf"
+	"github.com/syt3s/TreeBox/internal/config"
 )
 
 type RecaptchaVerifyResponse struct {
@@ -18,12 +18,12 @@ type RecaptchaVerifyResponse struct {
 
 func VerifyRecaptcha(ctx context.Context, token string, remoteAddr string) (*RecaptchaVerifyResponse, error) {
 	verifyURL := "https://www.google.com/recaptcha/api/siteverify"
-	if conf.Recaptcha.TurnstileStyle {
+	if config.Recaptcha.TurnstileStyle {
 		verifyURL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 	}
 
 	form := url.Values{}
-	form.Set("secret", conf.Recaptcha.ServerKey)
+	form.Set("secret", config.Recaptcha.ServerKey)
 	form.Set("response", token)
 	if strings.TrimSpace(remoteAddr) != "" {
 		form.Set("remoteip", remoteAddr)

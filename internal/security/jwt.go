@@ -7,7 +7,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/syt3s/TreeBox/internal/branding"
-	"github.com/syt3s/TreeBox/internal/conf"
+	"github.com/syt3s/TreeBox/internal/config"
 )
 
 const AuthTokenCookieName = branding.AuthTokenCookieName
@@ -28,7 +28,7 @@ func GenerateToken(uid uint, ttl time.Duration) (string, error) {
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(conf.Server.Salt))
+	return token.SignedString([]byte(config.Server.Salt))
 }
 
 func SetAuthTokenCookie(w http.ResponseWriter, token string, ttl time.Duration) {
@@ -39,7 +39,7 @@ func SetAuthTokenCookie(w http.ResponseWriter, token string, ttl time.Duration) 
 		MaxAge:   int(ttl.Seconds()),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.App.Production,
+		Secure:   config.App.Production,
 	})
 }
 
@@ -52,14 +52,14 @@ func ClearAuthTokenCookie(w http.ResponseWriter) {
 			MaxAge:   -1,
 			HttpOnly: true,
 			SameSite: http.SameSiteLaxMode,
-			Secure:   conf.App.Production,
+			Secure:   config.App.Production,
 		})
 	}
 }
 
 func ParseToken(tokenString string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(conf.Server.Salt), nil
+		return []byte(config.Server.Salt), nil
 	})
 	if err != nil {
 		return nil, err

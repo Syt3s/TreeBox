@@ -29,11 +29,24 @@ const Toast = ({ id, message, variant = "default", duration = 3000, onClose }: T
   }
 
   const colors = {
-    default: "bg-gray-900 text-white dark:bg-gray-50 dark:text-gray-900",
-    success: "bg-green-600 text-white",
-    error: "bg-red-600 text-white",
-    warning: "bg-yellow-600 text-white",
-    info: "bg-blue-600 text-white",
+    default:
+      "border-slate-200 bg-white/95 text-slate-900 dark:border-slate-800 dark:bg-slate-950/95 dark:text-slate-100",
+    success:
+      "border-emerald-200 bg-emerald-50/95 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/90 dark:text-emerald-100",
+    error:
+      "border-sky-200 bg-sky-50/95 text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/90 dark:text-sky-100",
+    warning:
+      "border-amber-200 bg-amber-50/95 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/90 dark:text-amber-100",
+    info:
+      "border-cyan-200 bg-cyan-50/95 text-cyan-900 dark:border-cyan-900/50 dark:bg-cyan-950/90 dark:text-cyan-100",
+  }
+
+  const iconColors = {
+    default: "bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-200",
+    success: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/70 dark:text-emerald-200",
+    error: "bg-sky-100 text-sky-700 dark:bg-sky-900/70 dark:text-sky-200",
+    warning: "bg-amber-100 text-amber-700 dark:bg-amber-900/70 dark:text-amber-200",
+    info: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/70 dark:text-cyan-200",
   }
 
   const Icon = icons[variant]
@@ -41,15 +54,22 @@ const Toast = ({ id, message, variant = "default", duration = 3000, onClose }: T
   return (
     <div
       className={cn(
-        "fixed top-4 right-4 z-50 flex items-center gap-3 rounded-lg px-4 py-3 shadow-lg transition-all duration-300 animate-in slide-in-from-top-2",
+        "relative flex w-full items-start gap-3 rounded-2xl border px-4 py-3 shadow-lg backdrop-blur transition-all duration-300 animate-in slide-in-from-top-2",
         colors[variant]
       )}
     >
-      <Icon className="h-5 w-5 flex-shrink-0" />
-      <span className="text-sm font-medium">{message}</span>
+      <div
+        className={cn(
+          "flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full",
+          iconColors[variant]
+        )}
+      >
+        <Icon className="h-5 w-5" />
+      </div>
+      <span className="flex-1 text-sm font-medium leading-6">{message}</span>
       <button
         onClick={() => onClose(id)}
-        className="ml-2 rounded-full p-1 hover:bg-black/10 dark:hover:bg-white/10"
+        className="rounded-full p-1 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
       >
         <X className="h-4 w-4" />
       </button>
@@ -78,7 +98,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div className="fixed top-0 right-0 z-50 flex flex-col gap-2 p-4">
+      <div className="fixed right-4 top-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-3">
         {toasts.map((t) => (
           <Toast key={t.id} {...t} onClose={removeToast} />
         ))}

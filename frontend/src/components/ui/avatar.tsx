@@ -1,7 +1,6 @@
 "use client"
+/* eslint-disable @next/next/no-img-element */
 
-import Image from "next/image"
-import type { ImageProps } from "next/image"
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
@@ -20,10 +19,7 @@ const Avatar = React.forwardRef<
 ))
 Avatar.displayName = "Avatar"
 
-type AvatarImageProps = Omit<ImageProps, "src" | "alt" | "width" | "height"> & {
-  src?: ImageProps["src"]
-  alt?: string
-}
+type AvatarImageProps = React.ImgHTMLAttributes<HTMLImageElement>
 
 const AvatarImage = React.forwardRef<HTMLImageElement, AvatarImageProps>(
   ({ className, src, alt = "", ...props }, ref) => {
@@ -51,13 +47,10 @@ const AvatarImage = React.forwardRef<HTMLImageElement, AvatarImageProps>(
     }
 
     return (
-      <Image
+      <img
         ref={ref}
-        src={src}
+        src={typeof src === "string" ? src : undefined}
         alt={alt}
-        width={40}
-        height={40}
-        unoptimized
         onError={() => setHasError(true)}
         className={cn("aspect-square h-full w-full", hasError && "hidden", className)}
         {...props}

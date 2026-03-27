@@ -6,7 +6,7 @@ import { Footer } from "@/components/layout/footer"
 
 export default function SponsorPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-rose-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-sky-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
       <Header />
 
       <main className="container mx-auto px-4 py-16">

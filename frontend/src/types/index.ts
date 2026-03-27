@@ -19,6 +19,7 @@ export interface Question {
   content: string
   answer: string
   is_private: boolean
+  viewed_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -128,6 +129,13 @@ export interface UpdateProfileResponse {
   user?: User
 }
 
+export interface UploadUserAssetResponse {
+  success: boolean
+  message?: string
+  url?: string
+  user?: User
+}
+
 export interface UpdateHarassmentRequest {
   register_only: boolean
   block_words: string
@@ -147,4 +155,17 @@ export interface ExportDataResponse {
 
 export interface DeactivateResponse {
   success: boolean
+}
+
+export interface QuestionStatsResponse {
+  success: boolean
+  total_count: number
+  answered_count: number
+  unread_count: number
+  pending_count: number
+}
+
+export interface MarkQuestionViewedResponse {
+  success: boolean
+  viewed_at?: string
 }
