@@ -319,6 +319,37 @@ func TestGetUserQuestionStats(t *testing.T) {
 	require.Equal(t, int64(2), response.Data.PendingCount)
 }
 
+func TestGetUserQuestionStatsErrorMessageIsReadable(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	oldQuestions := repository.Questions
+	t.Cleanup(func() {
+		repository.Questions = oldQuestions
+	})
+
+	repository.Questions = &stubQuestionRepository{
+		totalCount:     7,
+		answeredCount:  3,
+		unreadCountErr: errors.New("count unread failed"),
+	}
+
+	engine := gin.New()
+	engine.Use(appcontext.Contexter(), middleware.ErrorHandler(), testAuthMiddleware(&model.User{
+		Model: gorm.Model{ID: 42},
+	}))
+
+	apiRoutes := engine.Group("/api/v2")
+	apiRoutes.Use(appcontext.APIEndpoint())
+	apiRoutes.GET("/user/questions/stats", appcontext.Wrap(GetUserQuestionStats))
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/v2/user/questions/stats", nil)
+
+	engine.ServeHTTP(recorder, request)
+
+	requireAPIError(t, recorder, http.StatusInternalServerError, 50000, "获取问题统计失败")
+}
+
 func TestMarkUserQuestionViewed(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -363,6 +394,102 @@ func TestMarkUserQuestionViewed(t *testing.T) {
 	require.Equal(t, 0, response.Code)
 	require.True(t, response.Data.Success)
 	require.NotEmpty(t, response.Data.ViewedAt)
+}
+
+func TestMarkUserQuestionViewedErrorMessagesAreReadable(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	testCases := []struct {
+		name       string
+		path       string
+		repository *stubQuestionRepository
+		statusCode int
+		errorCode  int
+		message    string
+	}{
+		{
+			name:       "invalid question id",
+			path:       "/api/v2/user/questions/not-a-number/viewed",
+			repository: &stubQuestionRepository{},
+			statusCode: http.StatusBadRequest,
+			errorCode:  40000,
+			message:    "问题编号无效",
+		},
+		{
+			name:       "question not found",
+			path:       "/api/v2/user/questions/1/viewed",
+			repository: &stubQuestionRepository{},
+			statusCode: http.StatusNotFound,
+			errorCode:  40400,
+			message:    "问题不存在",
+		},
+		{
+			name:       "get question failed",
+			path:       "/api/v2/user/questions/1/viewed",
+			repository: &stubQuestionRepository{getByIDErr: errors.New("get question failed")},
+			statusCode: http.StatusInternalServerError,
+			errorCode:  50000,
+			message:    "获取问题失败",
+		},
+		{
+			name: "forbidden",
+			path: "/api/v2/user/questions/1/viewed",
+			repository: &stubQuestionRepository{
+				questionsByID: map[uint]*model.Question{
+					1: {
+						Model:  dbutil.Model{ID: 1},
+						UserID: 99,
+					},
+				},
+			},
+			statusCode: http.StatusForbidden,
+			errorCode:  40300,
+			message:    "无权操作该问题",
+		},
+		{
+			name: "mark viewed failed",
+			path: "/api/v2/user/questions/1/viewed",
+			repository: &stubQuestionRepository{
+				questionsByID: map[uint]*model.Question{
+					1: {
+						Model:  dbutil.Model{ID: 1},
+						UserID: 42,
+					},
+				},
+				markViewedErr: errors.New("mark viewed failed"),
+			},
+			statusCode: http.StatusInternalServerError,
+			errorCode:  50000,
+			message:    "标记已查看失败",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			oldQuestions := repository.Questions
+			t.Cleanup(func() {
+				repository.Questions = oldQuestions
+			})
+
+			repository.Questions = testCase.repository
+
+			engine := gin.New()
+			engine.Use(appcontext.Contexter(), middleware.ErrorHandler(), testAuthMiddleware(&model.User{
+				Model: gorm.Model{ID: 42},
+			}))
+
+			apiRoutes := engine.Group("/api/v2")
+			apiRoutes.Use(appcontext.APIEndpoint())
+			apiRoutes.POST("/user/questions/:questionID/viewed", appcontext.Wrap(MarkUserQuestionViewed))
+
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodPost, testCase.path, nil)
+
+			engine.ServeHTTP(recorder, request)
+
+			requireAPIError(t, recorder, testCase.statusCode, testCase.errorCode, testCase.message)
+		})
+	}
 }
 
 func TestMarkAllUserQuestionsViewed(t *testing.T) {
@@ -426,6 +553,35 @@ func TestMarkAllUserQuestionsViewed(t *testing.T) {
 	require.NotEmpty(t, response.Data.ViewedAt)
 }
 
+func TestMarkAllUserQuestionsViewedErrorMessageIsReadable(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	oldQuestions := repository.Questions
+	t.Cleanup(func() {
+		repository.Questions = oldQuestions
+	})
+
+	repository.Questions = &stubQuestionRepository{
+		markAllViewedErr: errors.New("mark all viewed failed"),
+	}
+
+	engine := gin.New()
+	engine.Use(appcontext.Contexter(), middleware.ErrorHandler(), testAuthMiddleware(&model.User{
+		Model: gorm.Model{ID: 42},
+	}))
+
+	apiRoutes := engine.Group("/api/v2")
+	apiRoutes.Use(appcontext.APIEndpoint())
+	apiRoutes.POST("/user/questions/viewed", appcontext.Wrap(MarkAllUserQuestionsViewed))
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v2/user/questions/viewed", nil)
+
+	engine.ServeHTTP(recorder, request)
+
+	requireAPIError(t, recorder, http.StatusInternalServerError, 50000, "标记全部问题已查看失败")
+}
+
 type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -434,18 +590,62 @@ func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 
 type stubUserRepository struct {
 	userByDomain *model.User
+	userByEmail  map[string]*model.User
+	userByID     map[uint]*model.User
 }
 
 func (s *stubUserRepository) Create(context.Context, repository.CreateUserOptions) error {
 	return errors.New("not implemented")
 }
 
-func (s *stubUserRepository) GetByID(context.Context, uint) (*model.User, error) {
+func (s *stubUserRepository) Register(context.Context, repository.RegisterUserOptions) (*repository.RegisterUserResult, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (s *stubUserRepository) GetByEmail(context.Context, string) (*model.User, error) {
+func (s *stubUserRepository) EnsureTenantBootstrap(_ context.Context, userID uint) (*repository.TenantBootstrapResult, error) {
+	if s.userByDomain != nil && s.userByDomain.ID == userID {
+		return &repository.TenantBootstrapResult{
+			User: s.userByDomain,
+			Tenant: &model.Tenant{
+				Model:       dbutil.Model{ID: 1},
+				UID:         "tenant_1",
+				Name:        "Test tenant",
+				OwnerUserID: userID,
+				IsPersonal:  true,
+			},
+			Membership: &model.TenantMember{
+				TenantID: 1,
+				UserID:   userID,
+				Role:     model.TenantRoleOwner,
+			},
+			Workspace: &model.Workspace{
+				Model:           dbutil.Model{ID: 1},
+				UID:             "workspace_1",
+				TenantID:        1,
+				Name:            "Default workspace",
+				CreatedByUserID: userID,
+				IsDefault:       true,
+			},
+		}, nil
+	}
 	return nil, errors.New("not implemented")
+}
+
+func (s *stubUserRepository) GetByID(_ context.Context, id uint) (*model.User, error) {
+	if s.userByDomain != nil && s.userByDomain.ID == id {
+		return s.userByDomain, nil
+	}
+	if user, ok := s.userByID[id]; ok {
+		return user, nil
+	}
+	return nil, repository.ErrUserNotExists
+}
+
+func (s *stubUserRepository) GetByEmail(_ context.Context, email string) (*model.User, error) {
+	if user, ok := s.userByEmail[email]; ok {
+		return user, nil
+	}
+	return nil, repository.ErrUserNotExists
 }
 
 func (s *stubUserRepository) GetByDomain(_ context.Context, domain string) (*model.User, error) {
@@ -457,6 +657,15 @@ func (s *stubUserRepository) GetByDomain(_ context.Context, domain string) (*mod
 
 func (s *stubUserRepository) Update(context.Context, uint, repository.UpdateUserOptions) error {
 	return errors.New("not implemented")
+}
+
+func (s *stubUserRepository) UpdateRoutingWorkspace(_ context.Context, id, workspaceID uint) (*model.User, error) {
+	user, err := s.GetByID(context.Background(), id)
+	if err != nil {
+		return nil, err
+	}
+	user.RoutingWorkspaceID = workspaceID
+	return user, nil
 }
 
 func (s *stubUserRepository) UpdateHarassmentSetting(context.Context, uint, repository.HarassmentSettingOptions) error {
@@ -480,11 +689,17 @@ func (s *stubUserRepository) Deactivate(context.Context, uint) error {
 }
 
 type stubQuestionRepository struct {
-	createCalls   []repository.CreateQuestionOptions
-	questionsByID map[uint]*model.Question
-	totalCount    int64
-	answeredCount int64
-	unreadCount   int64
+	createCalls            []repository.CreateQuestionOptions
+	questionsByID          map[uint]*model.Question
+	questionsByWorkspaceID map[uint][]*model.Question
+	workspaceStats         *repository.WorkspaceQuestionStats
+	totalCount             int64
+	answeredCount          int64
+	unreadCount            int64
+	getByIDErr             error
+	unreadCountErr         error
+	markViewedErr          error
+	markAllViewedErr       error
 }
 
 func (s *stubQuestionRepository) Create(_ context.Context, opts repository.CreateQuestionOptions) (*model.Question, error) {
@@ -492,9 +707,12 @@ func (s *stubQuestionRepository) Create(_ context.Context, opts repository.Creat
 
 	question := &model.Question{
 		UserID:            opts.UserID,
+		TenantID:          opts.TenantID,
+		WorkspaceID:       opts.WorkspaceID,
 		Content:           opts.Content,
 		ReceiveReplyEmail: opts.ReceiveReplyEmail,
 		AskerUserID:       opts.AskerUserID,
+		Status:            model.QuestionStatusNew,
 		IsPrivate:         opts.IsPrivate,
 	}
 	if s.questionsByID != nil {
@@ -507,6 +725,9 @@ func (s *stubQuestionRepository) Create(_ context.Context, opts repository.Creat
 }
 
 func (s *stubQuestionRepository) GetByID(_ context.Context, id uint) (*model.Question, error) {
+	if s.getByIDErr != nil {
+		return nil, s.getByIDErr
+	}
 	question, ok := s.questionsByID[id]
 	if !ok {
 		return nil, repository.ErrQuestionNotExist
@@ -516,6 +737,15 @@ func (s *stubQuestionRepository) GetByID(_ context.Context, id uint) (*model.Que
 
 func (s *stubQuestionRepository) GetByUserID(context.Context, uint, repository.GetQuestionsByUserIDOptions) ([]*model.Question, error) {
 	return nil, errors.New("not implemented")
+}
+
+func (s *stubQuestionRepository) GetByWorkspaceID(_ context.Context, workspaceID uint, _ repository.GetQuestionsByWorkspaceIDOptions) ([]*model.Question, error) {
+	questions := s.questionsByWorkspaceID[workspaceID]
+	clones := make([]*model.Question, 0, len(questions))
+	for _, question := range questions {
+		clones = append(clones, cloneQuestion(question))
+	}
+	return clones, nil
 }
 
 func (s *stubQuestionRepository) GetByAskUserID(context.Context, uint, repository.GetQuestionsByAskUserIDOptions) ([]*model.Question, error) {
@@ -528,10 +758,54 @@ func (s *stubQuestionRepository) AnswerByID(_ context.Context, id uint, answer s
 		return repository.ErrQuestionNotExist
 	}
 	question.Answer = answer
+	if strings.TrimSpace(answer) == "" {
+		question.Status = model.QuestionStatusInProgress
+		question.ResolvedAt = nil
+	} else {
+		question.Status = model.QuestionStatusAnswered
+		now := time.Now()
+		question.ResolvedAt = &now
+	}
 	return nil
 }
 
+func (s *stubQuestionRepository) UpdateStatus(_ context.Context, id uint, status model.QuestionStatus) (*model.Question, error) {
+	question, ok := s.questionsByID[id]
+	if !ok {
+		return nil, repository.ErrQuestionNotExist
+	}
+	question.Status = status
+	if status.IsResolved() {
+		now := time.Now()
+		question.ResolvedAt = &now
+	} else {
+		question.ResolvedAt = nil
+	}
+	return cloneQuestion(question), nil
+}
+
+func (s *stubQuestionRepository) UpdateAssignment(_ context.Context, id uint, assignedToUserID *uint) (*model.Question, error) {
+	question, ok := s.questionsByID[id]
+	if !ok {
+		return nil, repository.ErrQuestionNotExist
+	}
+	question.AssignedToUserID = assignedToUserID
+	return cloneQuestion(question), nil
+}
+
+func (s *stubQuestionRepository) UpdateInternalNote(_ context.Context, id uint, internalNote string) (*model.Question, error) {
+	question, ok := s.questionsByID[id]
+	if !ok {
+		return nil, repository.ErrQuestionNotExist
+	}
+	question.InternalNote = strings.TrimSpace(internalNote)
+	return cloneQuestion(question), nil
+}
+
 func (s *stubQuestionRepository) MarkViewed(_ context.Context, id uint, viewedAt time.Time) error {
+	if s.markViewedErr != nil {
+		return s.markViewedErr
+	}
 	question, ok := s.questionsByID[id]
 	if !ok {
 		return repository.ErrQuestionNotExist
@@ -541,6 +815,9 @@ func (s *stubQuestionRepository) MarkViewed(_ context.Context, id uint, viewedAt
 }
 
 func (s *stubQuestionRepository) MarkAllViewed(_ context.Context, userID uint, viewedAt time.Time) (int64, error) {
+	if s.markAllViewedErr != nil {
+		return 0, s.markAllViewedErr
+	}
 	var marked int64
 	for _, question := range s.questionsByID {
 		if question.UserID != userID || question.ViewedAt != nil {
@@ -552,8 +829,21 @@ func (s *stubQuestionRepository) MarkAllViewed(_ context.Context, userID uint, v
 	return marked, nil
 }
 
-func (s *stubQuestionRepository) DeleteByID(context.Context, uint) error {
-	return errors.New("not implemented")
+func (s *stubQuestionRepository) DeleteByID(_ context.Context, id uint) error {
+	if _, ok := s.questionsByID[id]; !ok {
+		return repository.ErrQuestionNotExist
+	}
+	delete(s.questionsByID, id)
+	for workspaceID, questions := range s.questionsByWorkspaceID {
+		filtered := make([]*model.Question, 0, len(questions))
+		for _, question := range questions {
+			if question.ID != id {
+				filtered = append(filtered, question)
+			}
+		}
+		s.questionsByWorkspaceID[workspaceID] = filtered
+	}
+	return nil
 }
 
 func (s *stubQuestionRepository) Count(_ context.Context, _ uint, opts repository.GetQuestionsCountOptions) (int64, error) {
@@ -564,15 +854,36 @@ func (s *stubQuestionRepository) Count(_ context.Context, _ uint, opts repositor
 }
 
 func (s *stubQuestionRepository) CountUnread(context.Context, uint, bool) (int64, error) {
+	if s.unreadCountErr != nil {
+		return 0, s.unreadCountErr
+	}
 	return s.unreadCount, nil
 }
 
-func (s *stubQuestionRepository) SetPrivate(context.Context, uint) error {
-	return errors.New("not implemented")
+func (s *stubQuestionRepository) GetWorkspaceStats(context.Context, uint, repository.GetWorkspaceQuestionStatsOptions) (*repository.WorkspaceQuestionStats, error) {
+	if s.workspaceStats == nil {
+		return &repository.WorkspaceQuestionStats{}, nil
+	}
+	cloned := *s.workspaceStats
+	return &cloned, nil
 }
 
-func (s *stubQuestionRepository) SetPublic(context.Context, uint) error {
-	return errors.New("not implemented")
+func (s *stubQuestionRepository) SetPrivate(_ context.Context, id uint) error {
+	question, ok := s.questionsByID[id]
+	if !ok {
+		return repository.ErrQuestionNotExist
+	}
+	question.IsPrivate = true
+	return nil
+}
+
+func (s *stubQuestionRepository) SetPublic(_ context.Context, id uint) error {
+	question, ok := s.questionsByID[id]
+	if !ok {
+		return repository.ErrQuestionNotExist
+	}
+	question.IsPrivate = false
+	return nil
 }
 
 func cloneQuestion(question *model.Question) *model.Question {
@@ -604,4 +915,18 @@ func testAuthMiddleware(user *model.User) gin.HandlerFunc {
 		ctx.IsLogged = user != nil
 		c.Next()
 	}
+}
+
+func requireAPIError(t *testing.T, recorder *httptest.ResponseRecorder, statusCode, errorCode int, message string) {
+	t.Helper()
+
+	require.Equal(t, statusCode, recorder.Code)
+
+	var response struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+	require.Equal(t, errorCode, response.Code)
+	require.Equal(t, message, response.Message)
 }

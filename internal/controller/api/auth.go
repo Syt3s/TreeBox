@@ -55,6 +55,11 @@ func Login(ctx appctx.Context) error {
 		return ctx.JSONError(50000, "登录失败")
 	}
 
+	if _, err := repository.Users.EnsureTenantBootstrap(ctx.Request().Context(), user.ID); err != nil {
+		logger.Error("failed to ensure tenant bootstrap after login", zap.Error(err), zap.Uint("user_id", user.ID))
+		return ctx.JSONError(50000, "登录失败，请稍后重试")
+	}
+
 	token, err := security.GenerateToken(user.ID, 30*24*time.Hour)
 	if err != nil {
 		logger.Error("failed to generate auth token", zap.Error(err), zap.Uint("user_id", user.ID))
@@ -104,14 +109,19 @@ func Register(ctx appctx.Context) error {
 		return err
 	}
 
-	if err := repository.Users.Create(ctx.Request().Context(), repository.CreateUserOptions{
-		Name:       req.Name,
-		Email:      req.Email,
-		Password:   req.Password,
-		Domain:     req.Domain,
-		Avatar:     config.Upload.DefaultAvatar,
-		Background: config.Upload.DefaultBackground,
-	}); err != nil {
+	result, err := repository.Users.Register(ctx.Request().Context(), repository.RegisterUserOptions{
+		CreateUserOptions: repository.CreateUserOptions{
+			Name:       req.Name,
+			Email:      req.Email,
+			Password:   req.Password,
+			Domain:     req.Domain,
+			Avatar:     config.Upload.DefaultAvatar,
+			Background: config.Upload.DefaultBackground,
+		},
+		TenantName:    req.Name + " team",
+		WorkspaceName: "Default workspace",
+	})
+	if err != nil {
 		if errors.Is(err, repository.ErrDuplicateEmail) {
 			return ctx.JSONError(40900, "这个邮箱已经注册过账号了")
 		}
@@ -122,8 +132,8 @@ func Register(ctx appctx.Context) error {
 		return ctx.JSONError(50000, "注册失败")
 	}
 
-	user, err := repository.Users.GetByEmail(ctx.Request().Context(), req.Email)
-	if err != nil {
+	user := result.User
+	if user == nil {
 		logger.Error("failed to load user after registration", zap.Error(err))
 		return ctx.JSONError(50000, "注册成功，但获取用户信息失败")
 	}
@@ -386,7 +396,7 @@ func GetUserQuestionStats(ctx appctx.Context) error {
 	unreadCount, err := repository.Questions.CountUnread(ctx.Request().Context(), ctx.User.ID, true)
 	if err != nil {
 		logger.Error("failed to count unread questions", zap.Error(err))
-		return ctx.JSONError(50000, "鑾峰彇闂缁熻澶辫触")
+		return ctx.JSONError(50000, "获取问题统计失败")
 	}
 
 	return ctx.JSON(GetUserQuestionStatsResponse{
@@ -417,26 +427,26 @@ func MarkUserQuestionViewed(ctx appctx.Context) error {
 
 	questionID, err := strconv.ParseUint(strings.TrimSpace(ctx.Param("questionID")), 10, 64)
 	if err != nil {
-		return ctx.JSONError(40000, "闂缂栧彿鏃犳晥")
+		return ctx.JSONError(40000, "问题编号无效")
 	}
 
 	question, err := repository.Questions.GetByID(ctx.Request().Context(), uint(questionID))
 	if err != nil {
 		if errors.Is(err, repository.ErrQuestionNotExist) {
-			return ctx.JSONError(40400, "闂涓嶅瓨鍦?")
+			return ctx.JSONError(40400, "问题不存在")
 		}
-		return ctx.JSONError(50000, "鑾峰彇闂澶辫触")
+		return ctx.JSONError(50000, "获取问题失败")
 	}
 
 	if question.UserID != ctx.User.ID {
-		return ctx.JSONError(40300, "鏃犳潈鎿嶄綔璇ラ棶棰?")
+		return ctx.JSONError(40300, "无权操作该问题")
 	}
 
 	if question.ViewedAt == nil {
 		viewedAt := time.Now()
 		if err := repository.Questions.MarkViewed(ctx.Request().Context(), question.ID, viewedAt); err != nil {
 			logger.Error("failed to mark question viewed", zap.Error(err), zap.Uint("question_id", question.ID))
-			return ctx.JSONError(50000, "鏍囪宸叉煡鐪嬪け璐?")
+			return ctx.JSONError(50000, "标记已查看失败")
 		}
 		question.ViewedAt = &viewedAt
 	}
@@ -457,7 +467,7 @@ func MarkAllUserQuestionsViewed(ctx appctx.Context) error {
 	viewedCount, err := repository.Questions.MarkAllViewed(ctx.Request().Context(), ctx.User.ID, viewedAt)
 	if err != nil {
 		logger.Error("failed to mark all questions viewed", zap.Error(err))
-		return ctx.JSONError(50000, "閼惧嘲褰囬梻顕€顣芥径杈Е")
+		return ctx.JSONError(50000, "标记全部问题已查看失败")
 	}
 
 	var responseViewedAt *time.Time

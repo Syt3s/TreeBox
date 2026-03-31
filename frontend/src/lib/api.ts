@@ -1,14 +1,23 @@
 import type {
+  AddTenantMemberRequest,
+  AddTenantMemberResponse,
   AnswerQuestionRequest,
   AnswerQuestionResponse,
   CreateQuestionRequest,
   CreateQuestionResponse,
+  CreateWorkspaceRequest,
+  CreateWorkspaceResponse,
   DeactivateResponse,
   DeleteQuestionResponse,
   ExportDataResponse,
   GetQuestionResponse,
   GetQuestionsResponse,
   GetUserResponse,
+  GetWorkspaceQuestionStatsResponse,
+  ListTenantMembersResponse,
+  ListTenantsResponse,
+  ListWorkspaceQuestionsResponse,
+  ListWorkspacesResponse,
   LoginRequest,
   LoginResponse,
   MarkAllQuestionsViewedResponse,
@@ -16,13 +25,22 @@ import type {
   QuestionStatsResponse,
   RegisterRequest,
   RegisterResponse,
+  RemoveTenantMemberResponse,
   SetQuestionPrivateResponse,
+  SetWorkspaceIntakeResponse,
   UploadUserAssetResponse,
+  UpdateTenantMemberRoleRequest,
+  UpdateTenantMemberRoleResponse,
   UpdateHarassmentRequest,
   UpdateHarassmentResponse,
+  UpdateWorkspaceQuestionAssigneeRequest,
+  UpdateWorkspaceQuestionInternalNoteRequest,
+  UpdateWorkspaceQuestionPrivacyRequest,
   UpdateProfileRequest,
   UpdateProfileResponse,
+  UpdateWorkspaceQuestionStatusRequest,
   User,
+  WorkspaceQuestionMutationResponse,
 } from "@/types"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.trim() || ""
@@ -167,6 +185,156 @@ export const api = {
 
   users: {
     get: (domain: string) => request<GetUserResponse>(`/api/v2/users/${encodePathSegment(domain)}`),
+  },
+
+  tenants: {
+    list: () => request<ListTenantsResponse>("/api/v2/tenants"),
+
+    members: {
+      list: (tenantUid: string) =>
+        request<ListTenantMembersResponse>(`/api/v2/tenants/${encodePathSegment(tenantUid)}/members`),
+
+      add: (tenantUid: string, data: AddTenantMemberRequest) =>
+        request<AddTenantMemberResponse>(`/api/v2/tenants/${encodePathSegment(tenantUid)}/members`, {
+          method: "POST",
+          body: JSON.stringify(data),
+        }),
+
+      updateRole: (tenantUid: string, memberUserId: number, data: UpdateTenantMemberRoleRequest) =>
+        request<UpdateTenantMemberRoleResponse>(
+          `/api/v2/tenants/${encodePathSegment(tenantUid)}/members/${encodePathSegment(memberUserId)}/role`,
+          {
+            method: "POST",
+            body: JSON.stringify(data),
+          }
+        ),
+
+      remove: (tenantUid: string, memberUserId: number) =>
+        request<RemoveTenantMemberResponse>(
+          `/api/v2/tenants/${encodePathSegment(tenantUid)}/members/${encodePathSegment(memberUserId)}`,
+          {
+            method: "DELETE",
+          }
+        ),
+    },
+  },
+
+  workspaces: {
+    list: () => request<ListWorkspacesResponse>("/api/v2/workspaces"),
+
+    create: (data: CreateWorkspaceRequest) =>
+      request<CreateWorkspaceResponse>("/api/v2/workspaces", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    setIntake: (workspaceUid: string) =>
+      request<SetWorkspaceIntakeResponse>(`/api/v2/workspaces/${encodePathSegment(workspaceUid)}/intake`, {
+        method: "POST",
+      }),
+
+    stats: (workspaceUid: string) =>
+      request<GetWorkspaceQuestionStatsResponse>(`/api/v2/workspaces/${encodePathSegment(workspaceUid)}/stats`),
+
+    questions: {
+      list: (
+        workspaceUid: string,
+        params?: {
+          page_size?: number
+          cursor?: string
+          filter_answered?: boolean
+          show_private?: boolean
+          status?: string
+          assigned_to_user_id?: number
+          only_assigned?: boolean
+          only_unassigned?: boolean
+        }
+      ) => {
+        const searchParams = new URLSearchParams()
+        if (params?.page_size) {
+          searchParams.set("page_size", params.page_size.toString())
+        }
+        if (params?.cursor) {
+          searchParams.set("cursor", params.cursor)
+        }
+        if (params?.filter_answered) {
+          searchParams.set("filter_answered", "true")
+        }
+        if (params?.show_private === false) {
+          searchParams.set("show_private", "false")
+        }
+        if (params?.status?.trim()) {
+          searchParams.set("status", params.status.trim())
+        }
+        if (typeof params?.assigned_to_user_id === "number") {
+          searchParams.set("assigned_to_user_id", params.assigned_to_user_id.toString())
+        }
+        if (params?.only_assigned) {
+          searchParams.set("only_assigned", "true")
+        }
+        if (params?.only_unassigned) {
+          searchParams.set("only_unassigned", "true")
+        }
+
+        const query = searchParams.toString()
+        return request<ListWorkspaceQuestionsResponse>(
+          `/api/v2/workspaces/${encodePathSegment(workspaceUid)}/questions${query ? `?${query}` : ""}`
+        )
+      },
+
+      answer: (workspaceUid: string, questionId: number, data: AnswerQuestionRequest) =>
+        request<WorkspaceQuestionMutationResponse>(
+          `/api/v2/workspaces/${encodePathSegment(workspaceUid)}/questions/${encodePathSegment(questionId)}/answer`,
+          {
+            method: "POST",
+            body: JSON.stringify(data),
+          }
+        ),
+
+      updateStatus: (workspaceUid: string, questionId: number, data: UpdateWorkspaceQuestionStatusRequest) =>
+        request<WorkspaceQuestionMutationResponse>(
+          `/api/v2/workspaces/${encodePathSegment(workspaceUid)}/questions/${encodePathSegment(questionId)}/status`,
+          {
+            method: "POST",
+            body: JSON.stringify(data),
+          }
+        ),
+
+      updateAssignee: (workspaceUid: string, questionId: number, data: UpdateWorkspaceQuestionAssigneeRequest) =>
+        request<WorkspaceQuestionMutationResponse>(
+          `/api/v2/workspaces/${encodePathSegment(workspaceUid)}/questions/${encodePathSegment(questionId)}/assignee`,
+          {
+            method: "POST",
+            body: JSON.stringify(data),
+          }
+        ),
+
+      updateInternalNote: (
+        workspaceUid: string,
+        questionId: number,
+        data: UpdateWorkspaceQuestionInternalNoteRequest
+      ) =>
+        request<WorkspaceQuestionMutationResponse>(
+          `/api/v2/workspaces/${encodePathSegment(workspaceUid)}/questions/${encodePathSegment(questionId)}/internal-note`,
+          {
+            method: "POST",
+            body: JSON.stringify(data),
+          }
+        ),
+
+      updatePrivacy: (
+        workspaceUid: string,
+        questionId: number,
+        data: UpdateWorkspaceQuestionPrivacyRequest
+      ) =>
+        request<WorkspaceQuestionMutationResponse>(
+          `/api/v2/workspaces/${encodePathSegment(workspaceUid)}/questions/${encodePathSegment(questionId)}/privacy`,
+          {
+            method: "POST",
+            body: JSON.stringify(data),
+          }
+        ),
+    },
   },
 
   questions: {

@@ -20,14 +20,14 @@ export function Footer() {
               href="/pixel"
               className="hover:text-gray-900 dark:hover:text-gray-100"
             >
-              鐢绘澘
+              画板
             </a>
             <span>|</span>
             <a
               href="/sponsor"
               className="hover:text-gray-900 dark:hover:text-gray-100"
             >
-              鎵撹祻
+              打赏
             </a>
           </div>
         </div>

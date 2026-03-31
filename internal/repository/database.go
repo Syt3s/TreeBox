@@ -16,7 +16,12 @@ import (
 )
 
 var AllTables = []interface{}{
-	&model.User{}, &model.Question{},
+	&model.User{},
+	&model.Question{},
+	&model.Tenant{},
+	&model.TenantMember{},
+	&model.Workspace{},
+	&model.AuditLog{},
 }
 
 func Init(typ, dsn string) (*gorm.DB, error) {
@@ -44,6 +49,9 @@ func Init(typ, dsn string) (*gorm.DB, error) {
 
 	Users = NewUserRepository(db)
 	Questions = NewQuestionRepository(db)
+	Tenants = NewTenantRepository(db)
+	Workspaces = NewWorkspaceRepository(db)
+	AuditLogs = NewAuditLogRepository(db)
 
 	if err := db.Use(otelgorm.NewPlugin(
 		otelgorm.WithDBName(config.Database.Name),

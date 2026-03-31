@@ -1,7 +1,3 @@
-// Copyright 2022 E99p1ant. All rights reserved.
-// Use of this source code is governed by a MIT-style
-// license that can be found in the LICENSE file.
-
 package tracing
 
 import (
@@ -10,18 +6,15 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// config is a group of options for this instrumentation.
 type config struct {
 	TracerProvider trace.TracerProvider
 	Propagators    propagation.TextMapPropagator
 }
 
-// Option applies an option value for a config.
 type Option interface {
 	apply(*config)
 }
 
-// newConfig returns a config configured with all the passed Options.
 func newConfig(opts []Option) *config {
 	c := &config{
 		Propagators:    otel.GetTextMapPropagator(),
@@ -41,8 +34,6 @@ func (o propagatorsOption) apply(c *config) {
 	}
 }
 
-// WithPropagators returns an Option to use the Propagators when extracting
-// and injecting trace context from HTTP requests.
 func WithPropagators(p propagation.TextMapPropagator) Option {
 	return propagatorsOption{p: p}
 }
@@ -55,8 +46,6 @@ func (o tracerProviderOption) apply(c *config) {
 	}
 }
 
-// WithTracerProvider returns an Option to use the TracerProvider when
-// creating a Tracer.
 func WithTracerProvider(tp trace.TracerProvider) Option {
 	return tracerProviderOption{tp: tp}
 }

@@ -6,12 +6,15 @@ package repository
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/wuhan005/gadget"
 	"gorm.io/gorm"
 
+	"github.com/syt3s/TreeBox/internal/config"
 	"github.com/syt3s/TreeBox/internal/model"
 )
 
@@ -28,12 +31,14 @@ func TestUsers(t *testing.T) {
 		test func(t *testing.T, ctx context.Context, db *usersRepository)
 	}{
 		{"Create", testUsersCreate},
+		{"Register", testUsersRegister},
 		{"GetByID", testUsersGetByID},
 		{"GetByEmail", testUsersGetByEmail},
 		{"GetByDomain", testUsersGetByDomain},
 		{"Update", testUsersUpdate},
 		{"UpdateHarassmentSetting", testUsersUpdateHarassmentSetting},
 		{"Authenticate", testUsersAuthenticate},
+		{"AuthenticateLegacyHashUpgrade", testUsersAuthenticateLegacyHashUpgrade},
 		{"ChangePassword", testUsersChangePassword},
 		{"UpdatePassword", testUsersUpdatePassword},
 		{"Deactivate", testUsersDeactivate},
@@ -87,6 +92,47 @@ func testUsersCreate(t *testing.T, ctx context.Context, db *usersRepository) {
 			Intro:      "Be cool, but also be warm.",
 		})
 		require.Equal(t, ErrDuplicateDomain, err)
+	})
+}
+
+func testUsersRegister(t *testing.T, ctx context.Context, db *usersRepository) {
+	t.Run("normal", func(t *testing.T) {
+		result, err := db.Register(ctx, RegisterUserOptions{
+			CreateUserOptions: CreateUserOptions{
+				Name:       "Acme Owner",
+				Password:   "super_secret",
+				Email:      "owner@acme.test",
+				Avatar:     "avatar.png",
+				Domain:     "acme-owner",
+				Background: "background.png",
+				Intro:      "Personal tenant owner",
+			},
+			TenantName:    "Acme",
+			WorkspaceName: "Default workspace",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.NotNil(t, result.User)
+		require.NotNil(t, result.Tenant)
+		require.NotNil(t, result.Membership)
+		require.NotNil(t, result.Workspace)
+
+		require.Equal(t, result.User.ID, result.Tenant.OwnerUserID)
+		require.Equal(t, result.Tenant.ID, result.Membership.TenantID)
+		require.Equal(t, result.User.ID, result.Membership.UserID)
+		require.Equal(t, model.TenantRoleOwner, result.Membership.Role)
+		require.Equal(t, result.Tenant.ID, result.Workspace.TenantID)
+		require.Equal(t, result.User.ID, result.Workspace.CreatedByUserID)
+		require.True(t, result.Workspace.IsDefault)
+
+		var auditLogCount int64
+		err = db.WithContext(ctx).
+			Model(&model.AuditLog{}).
+			Where("tenant_id = ? AND action = ?", result.Tenant.ID, "tenant.bootstrap").
+			Count(&auditLogCount).
+			Error
+		require.NoError(t, err)
+		require.Equal(t, int64(1), auditLogCount)
 	})
 }
 
@@ -327,6 +373,29 @@ func testUsersAuthenticate(t *testing.T, ctx context.Context, db *usersRepositor
 	}
 	want.EncodePassword()
 	require.Equal(t, want, got)
+}
+
+func testUsersAuthenticateLegacyHashUpgrade(t *testing.T, ctx context.Context, db *usersRepository) {
+	err := db.Create(ctx, CreateUserOptions{
+		Name:       "Legacy",
+		Password:   "super_secret",
+		Email:      "legacy@github.red",
+		Avatar:     "avatar.png",
+		Domain:     "legacy",
+		Background: "background.png",
+		Intro:      "Legacy hash user",
+	})
+	require.Nil(t, err)
+
+	legacyHash := gadget.HmacSha1("super_secret", config.Server.Salt)
+	err = db.WithContext(ctx).Model(&model.User{}).Where("email = ?", "legacy@github.red").Update("password", legacyHash).Error
+	require.NoError(t, err)
+
+	got, err := db.Authenticate(ctx, "legacy@github.red", "super_secret")
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.False(t, got.NeedsPasswordUpgrade())
+	require.True(t, strings.HasPrefix(got.Password, "argon2id$"))
 }
 
 func testUsersChangePassword(t *testing.T, ctx context.Context, db *usersRepository) {

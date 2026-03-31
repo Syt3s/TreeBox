@@ -24,16 +24,16 @@ function NavItem({ href, label, active = false, showIndicator = false }: NavItem
       variant="ghost"
       size="sm"
       className={cn(
-        "rounded-full text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-50",
-        active && "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50"
+        "rounded-full text-slate-600 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white",
+        active && "bg-slate-100 text-slate-950 dark:bg-slate-800 dark:text-white"
       )}
     >
       <Link href={href}>
         <span className="inline-flex items-center gap-1.5">
           <span>{label}</span>
-          {showIndicator && (
-            <span className="inline-flex h-2.5 w-2.5 flex-shrink-0 rounded-full bg-sky-500 ring-2 ring-white dark:bg-cyan-400 dark:ring-gray-950" />
-          )}
+          {showIndicator ? (
+            <span className="inline-flex h-2.5 w-2.5 rounded-full bg-cyan-500 ring-2 ring-white dark:ring-slate-950" />
+          ) : null}
         </span>
       </Link>
     </Button>
@@ -51,7 +51,7 @@ export function Header() {
       await logout()
       router.replace("/login")
     } catch {
-      // Keep the current page if the server-side logout failed.
+      // Keep the user on the current page if logout failed on the server.
     }
   }
 
@@ -100,6 +100,16 @@ export function Header() {
           showIndicator: unreadCount > 0 && !pathname.startsWith("/user/questions"),
         },
         {
+          href: "/user/workspaces",
+          label: "工作区",
+          active: pathname.startsWith("/user/workspaces"),
+        },
+        {
+          href: "/user/teams",
+          label: "团队成员",
+          active: pathname.startsWith("/user/teams"),
+        },
+        {
           href: "/user/profile",
           label: "设置",
           active: pathname.startsWith("/user/profile"),
@@ -108,21 +118,24 @@ export function Header() {
     : []
 
   return (
-    <nav className="sticky top-0 z-40 w-full border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:border-gray-800 dark:bg-gray-950/95">
+    <nav className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70 dark:border-slate-800 dark:bg-slate-950/90">
       <div className="container mx-auto flex min-h-16 flex-wrap items-center justify-between gap-3 px-4 py-3">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500">
-            <span className="text-xl font-bold text-white">T</span>
+        <Link href="/" className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 via-cyan-500 to-emerald-400 shadow-lg shadow-cyan-500/20">
+            <span className="text-lg font-bold text-white">T</span>
           </div>
-          <span className="text-xl font-bold text-gray-900 dark:text-gray-100">TreeBox</span>
+          <div className="space-y-0.5">
+            <span className="block text-lg font-semibold text-slate-950 dark:text-white">TreeBox</span>
+            <span className="block text-xs text-slate-500 dark:text-slate-400">多租户问答工作台</span>
+          </div>
         </Link>
 
         <div className="flex flex-wrap items-center justify-end gap-3">
           {loading ? (
-            <div className="h-9 w-24 animate-pulse rounded-md bg-gray-200 dark:bg-gray-800" />
+            <div className="h-9 w-24 animate-pulse rounded-full bg-slate-200 dark:bg-slate-800" />
           ) : user ? (
             <>
-              <div className="flex flex-wrap items-center gap-1 rounded-full border border-gray-200/80 bg-gray-50/80 p-1 dark:border-gray-800 dark:bg-gray-900/80">
+              <div className="flex flex-wrap items-center gap-1 rounded-full border border-slate-200 bg-slate-50/80 p-1 dark:border-slate-800 dark:bg-slate-900/80">
                 {navigation.map((item) => (
                   <NavItem
                     key={item.href}
@@ -134,14 +147,17 @@ export function Header() {
                 ))}
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-1.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <Avatar>
                   <AvatarImage src={user.avatar} alt={user.name} />
                   <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{user.name}</span>
+                <div className="hidden min-w-0 sm:block">
+                  <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{user.name}</p>
+                  <p className="truncate text-xs text-slate-500 dark:text-slate-400">@{user.domain}</p>
+                </div>
                 <Button variant="outline" size="sm" onClick={handleLogout}>
-                  退出
+                  退出登录
                 </Button>
               </div>
             </>

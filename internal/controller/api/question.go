@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/wuhan005/govalid"
@@ -72,6 +73,22 @@ func CreateQuestion(ctx appctx.Context) error {
 		return ctx.JSONError(50000, "获取用户信息失败")
 	}
 
+	bootstrap, err := repository.Users.EnsureTenantBootstrap(ctx.Request().Context(), pageUser.ID)
+	if err != nil {
+		logger.Error("failed to ensure tenant bootstrap for page user", zap.Error(err), zap.Uint("page_user_id", pageUser.ID))
+		return ctx.JSONError(50000, "创建问题失败")
+	}
+
+	workspace, err := resolveQuestionWorkspace(ctx.Request().Context(), pageUser, bootstrap)
+	if err != nil {
+		logger.Error("failed to resolve routed workspace", zap.Error(err), zap.Uint("page_user_id", pageUser.ID))
+		return ctx.JSONError(50000, "创建问题失败")
+	}
+	if workspace == nil {
+		logger.Error("question routing workspace is unavailable", zap.Uint("page_user_id", pageUser.ID))
+		return ctx.JSONError(50000, "创建问题失败")
+	}
+
 	if !ctx.IsLogged && pageUser.HarassmentSetting == model.HarassmentSettingTypeRegisterOnly {
 		return ctx.JSONError(40100, "该提问箱仅允许注册用户提问，请先登录")
 	}
@@ -117,6 +134,8 @@ func CreateQuestion(ctx appctx.Context) error {
 
 	question, err := repository.Questions.Create(ctx.Request().Context(), repository.CreateQuestionOptions{
 		FromIP:            fromIP,
+		TenantID:          workspace.TenantID,
+		WorkspaceID:       workspace.ID,
 		UserID:            pageUser.ID,
 		Content:           content,
 		ReceiveReplyEmail: receiveReplyEmail,
@@ -127,6 +146,14 @@ func CreateQuestion(ctx appctx.Context) error {
 		logger.Error("failed to create question", zap.Error(err), zap.Uint("page_user_id", pageUser.ID))
 		return ctx.JSONError(50000, "创建问题失败")
 	}
+
+	recordQuestionAudit(ctx.Request().Context(), logger, question, bootstrap, askerUserID, "question.created", map[string]interface{}{
+		"owner_user_id":  pageUser.ID,
+		"is_private":     question.IsPrivate,
+		"asker_user_id":  askerUserID,
+		"content_length": len([]rune(question.Content)),
+		"receive_reply":  receiveReplyEmail != "",
+	})
 
 	return ctx.JSON(CreateQuestionResponse{
 		Success:  true,
@@ -265,7 +292,10 @@ func GetQuestion(ctx appctx.Context) error {
 		return ctx.JSONError(40300, "无权访问该问题")
 	}
 
-	canDelete := ctx.IsLogged && ctx.User.ID == pageUser.ID
+	canDelete, _, err := canManageQuestion(ctx, pageUser, question)
+	if err != nil {
+		return ctx.JSONError(50000, "获取问题失败")
+	}
 	if !canDelete && (question.IsPrivate || strings.TrimSpace(question.Answer) == "") {
 		return ctx.JSONError(40300, "无权访问该问题")
 	}
@@ -312,16 +342,24 @@ func AnswerQuestion(ctx appctx.Context) error {
 		return ctx.JSONError(50000, "获取用户信息失败")
 	}
 
-	if ctx.User.ID != pageUser.ID {
-		return ctx.JSONError(40300, "无权回答该问题")
-	}
-
 	question, err := repository.Questions.GetByID(ctx.Request().Context(), questionID)
 	if err != nil {
 		if errors.Is(err, repository.ErrQuestionNotExist) {
 			return ctx.JSONError(40400, "问题不存在")
 		}
 		return ctx.JSONError(50000, "获取问题失败")
+	}
+	if !questionBelongsToPage(question, pageUser) {
+		return ctx.JSONError(40300, "无权回答该问题")
+	}
+
+	canManage, bootstrap, err := canManageQuestion(ctx, pageUser, question)
+	if err != nil {
+		logger.Error("failed to resolve question permissions", zap.Error(err))
+		return ctx.JSONError(50000, "回答问题失败")
+	}
+	if !canManage {
+		return ctx.JSONError(40300, "无权回答该问题")
 	}
 
 	if err := repository.Questions.AnswerByID(ctx.Request().Context(), question.ID, req.Answer); err != nil {
@@ -330,6 +368,22 @@ func AnswerQuestion(ctx appctx.Context) error {
 	}
 
 	notifyQuestionAnswered(ctx.Request().Context(), logger, pageUser, question, req.Answer)
+
+	question.Answer = strings.TrimSpace(req.Answer)
+	if question.Answer == "" {
+		question.Status = model.QuestionStatusInProgress
+		question.ResolvedAt = nil
+	} else {
+		question.Status = model.QuestionStatusAnswered
+		now := time.Now()
+		question.ResolvedAt = &now
+	}
+
+	recordQuestionAudit(ctx.Request().Context(), logger, question, bootstrap, ctx.User.ID, "question.answered", map[string]interface{}{
+		"owner_user_id": pageUser.ID,
+		"answer_length": len([]rune(req.Answer)),
+		"status":        string(question.Status),
+	})
 
 	return ctx.JSON(AnswerQuestionResponse{
 		Success: true,
@@ -363,7 +417,23 @@ func DeleteQuestion(ctx appctx.Context) error {
 		return ctx.JSONError(50000, "获取用户信息失败")
 	}
 
-	if ctx.User.ID != pageUser.ID {
+	question, err := repository.Questions.GetByID(ctx.Request().Context(), questionID)
+	if err != nil {
+		if errors.Is(err, repository.ErrQuestionNotExist) {
+			return ctx.JSONError(40400, "问题不存在")
+		}
+		return ctx.JSONError(50000, "获取问题失败")
+	}
+	if !questionBelongsToPage(question, pageUser) {
+		return ctx.JSONError(40300, "无权删除该问题")
+	}
+
+	canManage, bootstrap, err := canManageQuestion(ctx, pageUser, question)
+	if err != nil {
+		logger.Error("failed to resolve question permissions", zap.Error(err))
+		return ctx.JSONError(50000, "删除问题失败")
+	}
+	if !canManage {
 		return ctx.JSONError(40300, "无权删除该问题")
 	}
 
@@ -371,6 +441,12 @@ func DeleteQuestion(ctx appctx.Context) error {
 		logger.Error("failed to delete question", zap.Error(err))
 		return ctx.JSONError(50000, "删除问题失败")
 	}
+
+	recordQuestionAudit(ctx.Request().Context(), logger, question, bootstrap, ctx.User.ID, "question.deleted", map[string]interface{}{
+		"owner_user_id": pageUser.ID,
+		"status":        string(question.Status),
+		"is_private":    question.IsPrivate,
+	})
 
 	return ctx.JSON(DeleteQuestionResponse{
 		Success: true,
@@ -404,7 +480,23 @@ func SetQuestionPrivate(ctx appctx.Context) error {
 		return ctx.JSONError(50000, "获取用户信息失败")
 	}
 
-	if ctx.User.ID != pageUser.ID {
+	question, err := repository.Questions.GetByID(ctx.Request().Context(), questionID)
+	if err != nil {
+		if errors.Is(err, repository.ErrQuestionNotExist) {
+			return ctx.JSONError(40400, "问题不存在")
+		}
+		return ctx.JSONError(50000, "获取问题失败")
+	}
+	if !questionBelongsToPage(question, pageUser) {
+		return ctx.JSONError(40300, "无权操作该问题")
+	}
+
+	canManage, bootstrap, err := canManageQuestion(ctx, pageUser, question)
+	if err != nil {
+		logger.Error("failed to resolve question permissions", zap.Error(err))
+		return ctx.JSONError(50000, "设置问题私密失败")
+	}
+	if !canManage {
 		return ctx.JSONError(40300, "无权操作该问题")
 	}
 
@@ -412,6 +504,12 @@ func SetQuestionPrivate(ctx appctx.Context) error {
 		logger.Error("failed to set question private", zap.Error(err))
 		return ctx.JSONError(50000, "设置问题私密失败")
 	}
+
+	question.IsPrivate = true
+	recordQuestionAudit(ctx.Request().Context(), logger, question, bootstrap, ctx.User.ID, "question.visibility_changed", map[string]interface{}{
+		"owner_user_id": pageUser.ID,
+		"is_private":    true,
+	})
 
 	return ctx.JSON(SetQuestionPrivateResponse{
 		Success: true,
@@ -440,7 +538,23 @@ func SetQuestionPublic(ctx appctx.Context) error {
 		return ctx.JSONError(50000, "获取用户信息失败")
 	}
 
-	if ctx.User.ID != pageUser.ID {
+	question, err := repository.Questions.GetByID(ctx.Request().Context(), questionID)
+	if err != nil {
+		if errors.Is(err, repository.ErrQuestionNotExist) {
+			return ctx.JSONError(40400, "问题不存在")
+		}
+		return ctx.JSONError(50000, "获取问题失败")
+	}
+	if !questionBelongsToPage(question, pageUser) {
+		return ctx.JSONError(40300, "无权操作该问题")
+	}
+
+	canManage, bootstrap, err := canManageQuestion(ctx, pageUser, question)
+	if err != nil {
+		logger.Error("failed to resolve question permissions", zap.Error(err))
+		return ctx.JSONError(50000, "设置问题公开失败")
+	}
+	if !canManage {
 		return ctx.JSONError(40300, "无权操作该问题")
 	}
 
@@ -448,6 +562,12 @@ func SetQuestionPublic(ctx appctx.Context) error {
 		logger.Error("failed to set question public", zap.Error(err))
 		return ctx.JSONError(50000, "设置问题公开失败")
 	}
+
+	question.IsPrivate = false
+	recordQuestionAudit(ctx.Request().Context(), logger, question, bootstrap, ctx.User.ID, "question.visibility_changed", map[string]interface{}{
+		"owner_user_id": pageUser.ID,
+		"is_private":    false,
+	})
 
 	return ctx.JSON(SetQuestionPrivateResponse{
 		Success: true,
